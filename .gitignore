@@ -1,0 +1,19 @@
+# Credenciales - NUNCA versionar
+.env
+
+# data/iqvia.duckdb SI se versiona a proposito: Streamlit Cloud lo sirve
+# directo desde el repo. Solo se ignora el archivo temporal .wal.
+data/*.duckdb.wal
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Configuracion local de Claude Code, no es parte del proyecto
+.claude/

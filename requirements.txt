@@ -1,0 +1,15 @@
+# --- Comun ---
+duckdb>=1.0
+pandas>=2.0
+python-dotenv>=1.0
+
+# --- Solo maquina de TRABAJO (exportador) ---
+pyodbc>=5.0
+SQLAlchemy>=2.0
+
+# --- Solo maquina PERSONAL (chatbot) ---
+anthropic>=0.60
+streamlit>=1.40
+matplotlib>=3.8
+numpy>=1.26
+PyYAML>=6.0

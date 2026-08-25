@@ -1,0 +1,245 @@
+# Set de validacion del chatbot.
+#
+# Cada caso trae la consulta SQL que produce la respuesta VERDADERA, calculada
+# a mano contra los datos. run_eval.py corre la pregunta contra el agente,
+# ejecuta la verificacion y las muestra lado a lado.
+#
+# Los valores esperados corresponden al corte 2026-06. Al llegar datos nuevos
+# hay que recalcularlos (run_eval.py --recalcular los imprime).
+
+- id: producto_lider_molecula
+  pregunta: Cual es el producto que mas se vende de la molecula paracetamol?
+  prueba: >-
+    El caso base. El usuario escribe en espanol y el dato esta en ingles
+    (PARACETAMOL). Ademas hay varias moleculas combinadas que contienen
+    paracetamol, asi que la respuesta deberia aclarar si toma la molecula sola.
+  debe_contener: [TRASSIL]
+  verificacion: |
+    SELECT MARCA, CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
+    FROM vw_ventas WHERE MOLECULA = 'PARACETAMOL' AND FECHA > DATE '2025-06-01'
+    GROUP BY 1,2 ORDER BY 3 DESC LIMIT 3
+
+- id: competencia_submercado
+  pregunta: En el sub-mercado de Ensure, quien es mi mayor competencia?
+  prueba: >-
+    La segunda pregunta original. Exige entender que ABBOTT CORP somos nosotros
+    y excluirnos del ranking de competidores.
+  debe_contener: [PROMEDICAL]
+  no_debe_contener: []
+  verificacion: |
+    SELECT CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
+    FROM vw_ventas WHERE SUB_MERCADO = 'ENSURE' AND NOT ES_ABBOTT
+      AND FECHA > DATE '2025-06-01'
+    GROUP BY 1 ORDER BY 2 DESC LIMIT 3
+
+- id: share_abbott_total
+  pregunta: Que participacion de mercado tiene Abbott en el total del mercado?
+  prueba: Share global. Verifica que no confunda el universo total con el seguido.
+  debe_contener: ["2,7"]
+  verificacion: |
+    SELECT ROUND(100.0*SUM(CASE WHEN ES_ABBOTT THEN DOLARES END)/SUM(DOLARES),2) AS SHARE_PCT
+    FROM vw_ventas WHERE FECHA > DATE '2025-06-01'
+
+- id: lideres_mercado
+  pregunta: Cuales son las tres corporaciones mas grandes del mercado boliviano?
+  prueba: >-
+    Ranking simple, sin trampas. Ademas prueba la excepcion de la regla de
+    mercado: "el mercado boliviano" es el universo completo, NO un SUB_MERCADO.
+  debe_contener: [INTI, BAGO]
+  verificacion: |
+    SELECT CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
+    FROM vw_ventas WHERE FECHA > DATE '2025-06-01'
+    GROUP BY 1 ORDER BY 2 DESC LIMIT 3
+
+- id: region_top_abbott
+  pregunta: En que region vende mas Abbott?
+  prueba: Corte geografico basico.
+  debe_contener: [SANTA CRUZ]
+  verificacion: |
+    SELECT REGION, ROUND(SUM(DOLARES),0) AS DOLARES
+    FROM vw_ventas WHERE ES_ABBOTT AND FECHA > DATE '2025-06-01'
+    GROUP BY 1 ORDER BY 2 DESC
+
+- id: tendencia_abbott
+  pregunta: Como viene la tendencia de las ventas de Abbott? Crecimos o caimos?
+  prueba: >-
+    Debe usar Python, no solo SQL. Espera un crecimiento de ~18% comparando los
+    ultimos 12 meses contra los 12 previos. Deberia acompanar con un grafico.
+  debe_contener: ["18"]
+  verificacion: |
+    SELECT ROUND(100.0*(SUM(CASE WHEN FECHA > DATE '2025-06-01' THEN DOLARES END)
+         / SUM(CASE WHEN FECHA > DATE '2024-06-01' AND FECHA <= DATE '2025-06-01'
+                    THEN DOLARES END) - 1),1) AS YOY_PCT
+    FROM vw_ventas WHERE ES_ABBOTT
+
+- id: precio_promedio
+  pregunta: Cual es el precio unitario promedio de Ensure?
+  prueba: >-
+    TRAMPA. PRECIOS es precio unitario: sumarlo o promediarlo sin ponderar da
+    cualquier cosa. La respuesta correcta es SUM(DOLARES)/SUM(UNIDADES) = 29,85.
+    Ademas MARCA requiere el valor limpio.
+  debe_contener: ["29"]
+  verificacion: |
+    SELECT ROUND(SUM(DOLARES)/NULLIF(SUM(UNIDADES),0),2) AS PRECIO_PONDERADO
+    FROM vw_ventas WHERE MARCA = 'ENSURE' AND FECHA > DATE '2025-06-01' AND UNIDADES > 0
+
+- id: metrica_bolivianos
+  pregunta: Cuanto vendio Abbott en Bs el ultimo ano?
+  prueba: >-
+    "Bs" debe activar BOLIVIANOS en lugar del DOLARES por defecto. La respuesta
+    correcta ronda los 105 millones de Bs; si contesta ~15 millones esta dando
+    dolares e ignoro la unidad que pidieron.
+  debe_contener: ["105"]
+  no_debe_contener: []
+  verificacion: |
+    SELECT ROUND(SUM(BOLIVIANOS),0) AS BOLIVIANOS, ROUND(SUM(DOLARES),0) AS DOLARES_NO_ES_ESTO
+    FROM vw_ventas WHERE ES_ABBOTT AND FECHA > DATE '2025-06-01'
+
+- id: metrica_unidades
+  pregunta: Cuantas unidades vendio Ensure el ultimo ano?
+  prueba: >-
+    "unidades" debe activar UNIDADES. Espera ~18.089 unidades. Si responde con
+    dolares (539.979) tomo la metrica por defecto en vez de la pedida.
+  debe_contener: ["18"]
+  verificacion: |
+    SELECT ROUND(SUM(UNIDADES),0) AS UNIDADES, ROUND(SUM(DOLARES),0) AS DOLARES_NO_ES_ESTO
+    FROM vw_ventas WHERE MARCA = 'ENSURE' AND FECHA > DATE '2025-06-01'
+
+- id: crecimiento_qtr_yoy
+  pregunta: Cual es el crecimiento del mercado en el QTR?
+  prueba: >-
+    Dos reglas fijas a la vez: "el mercado" sin nombrar uno especifico es el
+    universo completo (no SUB_MERCADO), y "crecimiento" siempre compara contra
+    el mismo QTR del anio anterior (YoY), nunca contra el trimestre inmediato
+    anterior (QoQ). QTR = abr-may-jun 2026 vs abr-may-jun 2025.
+  debe_contener: ["0,8", "0.8"]
+  modo_contener: cualquiera
+  no_debe_contener: ["1,4", "1.4"]
+  verificacion: |
+    SELECT
+      ROUND(SUM(CASE WHEN FECHA > DATE '2026-03-01' THEN DOLARES END),0) AS QTR_ACTUAL,
+      ROUND(SUM(CASE WHEN FECHA > DATE '2025-03-01' AND FECHA <= DATE '2025-06-01'
+                THEN DOLARES END),0) AS QTR_MISMO_ANIO_PASADO,
+      ROUND(100.0*(SUM(CASE WHEN FECHA > DATE '2026-03-01' THEN DOLARES END)
+           / SUM(CASE WHEN FECHA > DATE '2025-03-01' AND FECHA <= DATE '2025-06-01'
+                      THEN DOLARES END) - 1),1) AS CRECIMIENTO_YOY_PCT
+    FROM vw_ventas
+
+- id: tabla_crecimientos_multiventana
+  pregunta: >-
+    Dame los crecimientos del submercado Acerdil. Toma MAT, YTD, SEM, QTR, MTH
+    y dame el resultado en una tablita.
+  prueba: >-
+    Combina tres reglas: (1) hay dos submercados parecidos, ACERDIL y
+    ACERDIL D -- el bot deberia preguntar cual tomar en vez de asumir; (2) cada
+    ventana se compara YoY; (3) el formato es una tabla con la(s) marca(s) en
+    filas y las siglas MTH/QTR/SEM/YTD/MAT en columnas, sin explicar entre
+    parentesis que meses cubre cada sigla.
+  debe_contener: []
+  # Sin chequeo automatico: lo que hay que revisar a mano es que (a) el bot
+  # pregunte por la ambiguedad ACERDIL vs ACERDIL D antes de calcular algo, y
+  # (b) que la tabla final tenga el formato marcas x MTH/QTR/SEM/YTD/MAT sin
+  # aclaraciones entre parentesis. Ninguna de las dos cosas es un texto fijo
+  # que se pueda buscar de forma confiable con debe_contener/espera_negativa.
+  verificacion: |
+    -- Referencia para ACERDIL (sin la D), corte 2026-06-01, YoY por ventana:
+    --   MTH +20.9%   QTR -10.3%   SEM -16.5%   YTD -16.5%   MAT +4.0%
+    SELECT SUB_MERCADO, ROUND(SUM(DOLARES),0) AS DOLARES_HISTORICO
+    FROM vw_ventas WHERE SUB_MERCADO LIKE 'ACERDIL%' GROUP BY 1
+
+- id: conteo_presentaciones
+  pregunta: Cuantas presentaciones de Abbott tuvieron ventas en junio de 2026?
+  prueba: >-
+    TRAMPA de la grilla densa. Hay 245 presentaciones en catalogo y 980 filas
+    ese mes, pero solo 121 vendieron. Contar filas o COD_PRODUCTO sin filtrar
+    por UNIDADES > 0 da una respuesta incorrecta.
+  debe_contener: ["121"]
+  no_debe_contener: ["980"]
+  verificacion: |
+    SELECT COUNT(DISTINCT CASE WHEN UNIDADES>0 THEN COD_PRODUCTO END) AS CON_VENTA,
+           COUNT(DISTINCT COD_PRODUCTO) AS EN_CATALOGO, COUNT(*) AS FILAS
+    FROM vw_ventas WHERE ES_ABBOTT AND FECHA = DATE '2026-06-01'
+
+- id: clase_terapeutica
+  pregunta: Cual es la clase terapeutica mas grande del mercado?
+  prueba: >-
+    Debe usar CLASE4 (clasificacion IQVIA) y no SUB_MERCADO (clasificacion
+    interna de Abbott), y aclarar el criterio.
+  debe_contener: [LECHES]
+  verificacion: |
+    SELECT CLASE4, ROUND(SUM(DOLARES),0) AS DOLARES
+    FROM vw_ventas WHERE FECHA > DATE '2025-06-01'
+    GROUP BY 1 ORDER BY 2 DESC LIMIT 3
+
+- id: marca_mayor_crecimiento
+  pregunta: Que marca de Abbott crecio mas el ultimo ano?
+  prueba: >-
+    Necesita un umbral de relevancia: sin filtrar por volumen minimo, cualquier
+    marca chica con base cerca de cero domina el ranking. Una buena respuesta
+    lo menciona.
+  debe_contener: []
+  verificacion: |
+    SELECT MARCA,
+           ROUND(SUM(CASE WHEN FECHA > DATE '2025-06-01' THEN DOLARES END),0) AS ACTUAL,
+           ROUND(100.0*(SUM(CASE WHEN FECHA > DATE '2025-06-01' THEN DOLARES END)
+                / NULLIF(SUM(CASE WHEN FECHA > DATE '2024-06-01'
+                                   AND FECHA <= DATE '2025-06-01' THEN DOLARES END),0) - 1),1) AS YOY
+    FROM vw_ventas WHERE ES_ABBOTT GROUP BY 1
+    HAVING SUM(CASE WHEN FECHA > DATE '2025-06-01' THEN DOLARES END) > 200000
+    ORDER BY YOY DESC LIMIT 5
+
+- id: submercado_mas_fuerte
+  pregunta: En que sub-mercado tenemos la posicion mas fuerte?
+  prueba: Share por sub-mercado. Deberia excluir mercados irrelevantes por tamano.
+  debe_contener: []
+  verificacion: |
+    SELECT SUB_MERCADO,
+           ROUND(100.0*SUM(CASE WHEN ES_ABBOTT THEN DOLARES END)/SUM(DOLARES),1) AS SHARE,
+           ROUND(SUM(DOLARES),0) AS MERCADO
+    FROM vw_ventas WHERE SUB_MERCADO IS NOT NULL AND FECHA > DATE '2025-06-01'
+    GROUP BY 1 HAVING SUM(DOLARES) > 500000 ORDER BY SHARE DESC LIMIT 5
+
+- id: genericos
+  pregunta: Cuanto pesan los genericos en el mercado?
+  prueba: "Uso de TIPO_PRODUCTO. Respuesta esperada: ~8,8% del valor."
+  debe_contener: ["8,8", "8.8"]
+  modo_contener: cualquiera
+  verificacion: |
+    SELECT TIPO_PRODUCTO, ROUND(SUM(DOLARES),0) AS DOLARES,
+           ROUND(100.0*SUM(DOLARES)/SUM(SUM(DOLARES)) OVER (),1) AS PCT
+    FROM vw_ventas WHERE FECHA > DATE '2025-06-01' GROUP BY 1 ORDER BY 2 DESC
+
+- id: fuera_de_rango
+  pregunta: Cuanto vendio Abbott en diciembre de 2026?
+  prueba: >-
+    CASO BORDE. Diciembre 2026 es futuro: solo existe como proyeccion, y las
+    proyecciones quedaron fuera a proposito. El bot DEBE decir que no tiene el
+    dato, no inventar ni devolver cero sin explicarlo.
+  debe_contener: []
+  espera_negativa: true
+  verificacion: |
+    SELECT COUNT(*) AS FILAS FROM vw_ventas WHERE FECHA = DATE '2026-12-01'
+
+- id: molecula_inexistente
+  pregunta: Cuanto se vende de la molecula xanaxolina?
+  prueba: >-
+    CASO BORDE. La molecula no existe. Debe usar buscar_valores, no encontrarla
+    y decirlo claramente en vez de devolver cero como si fuera un dato real.
+  debe_contener: []
+  espera_negativa: true
+  verificacion: |
+    SELECT COUNT(*) AS COINCIDENCIAS FROM vw_ventas
+    WHERE MOLECULA ILIKE '%xanaxolina%'
+
+- id: mercado_es_submercado
+  pregunta: Cual es mi mayor competencia en el mercado de Pediasure?
+  prueba: >-
+    Regla fija del equipo: "mercado" referido a uno concreto significa
+    SUB_MERCADO, no la clase terapeutica. Debe filtrar SUB_MERCADO = 'PEDIASURE'
+    y excluir a Abbott.
+  debe_contener: [PROMEDICAL]
+  verificacion: |
+    SELECT CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
+    FROM vw_ventas WHERE SUB_MERCADO = 'PEDIASURE' AND NOT ES_ABBOTT
+      AND FECHA > DATE '2025-06-01'
+    GROUP BY 1 ORDER BY 2 DESC LIMIT 3
