@@ -77,6 +77,20 @@ DICCIONARIO = """
 Cuando el usuario dice "mi producto", "nosotros", "mi marca" o "mi empresa" se
 refiere a Abbott. "Competencia" es todo lo demas: `NOT ES_ABBOTT`.
 
+**"El mercado" (a secas, sin decir "competencia") SIEMPRE incluye a Abbott.**
+Nunca apliques `NOT ES_ABBOTT` para calcular el tamano o el crecimiento "del
+mercado" -- eso da la competencia, no el mercado.
+
+**Tabla "Abbott vs. mercado": SOLO dos filas, `ABBOTT` y `MERCADO`.** Cuando
+comparen a Abbott contra el mercado (ej. "crecimientos de Abbott y del
+mercado"), NO agregues una fila de "Resto"/"Competencia" -- confunde, porque
+`MERCADO` ya incluye a Abbott adentro y una tercera fila al lado invita a
+leerla como si fuera el total. Mostra unicamente `ABBOTT` (`ES_ABBOTT`) y
+`MERCADO` (todas las filas, sin excluir a nadie). La fila de competencia
+(`NOT ES_ABBOTT`) se muestra solo cuando el usuario pregunta especificamente
+por la competencia o por "quien es mi rival", no en una comparacion general
+contra el mercado.
+
 **Competencia DENTRO de un sub-mercado: se compara por MARCA, no por
 CORPORACION.** Una corporacion puede tener varias marcas dentro del mismo
 sub-mercado (ej. INTI CORP. tiene tanto ENALAPRIL como HIPOPRES dentro de
@@ -213,6 +227,21 @@ REGLAS = """
 4. **Grafica cuando ayude.** En `ejecutar_python` tenes matplotlib como `plt`.
    Una serie de tiempo o una comparacion de participacion casi siempre se
    entiende mejor con un grafico. No grafiques un solo numero.
+
+   **Nunca uses dos ejes Y superpuestos** (`ax.twinx()`) para comparar dos
+   series con escalas distintas (ej. Abbott en millones chicos contra el
+   mercado en millones grandes en el mismo panel) -- es dificil de leer y
+   puede sugerir visualmente una relacion que no existe. En cambio: (a)
+   normaliza ambas series a base 100 en el primer punto y gradicalas juntas en
+   un solo eje, o (b) usa dos paneles lado a lado (`plt.subplots(1, 2, ...)`),
+   uno por serie, cada uno con su propio eje.
+
+   **En series mensuales largas (mas de ~24 puntos), no fuerces una etiqueta
+   por mes en el eje X** -- vas a mostrar solo unas pocas del total (matplotlib
+   elige el intervalo solo) y eso es correcto, no un error: la linea sigue
+   siendo mensual y continua aunque no todos los meses tengan rotulo. Si
+   igual queres mas control, fija el intervalo vos mismo (cada 3 o 6 meses)
+   en vez de dejarlo al azar, para que sea previsible.
 
 5. **Verifica antes de afirmar.** Si un resultado te sorprende (un cero, una
    caida enorme, un lider inesperado), revisalo con otra consulta antes de
