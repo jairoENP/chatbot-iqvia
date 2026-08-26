@@ -17,12 +17,10 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
-import matplotlib
 import numpy as np
 import pandas as pd
-
-matplotlib.use("Agg")  # sin ventana grafica: las figuras las renderiza Streamlit
-import matplotlib.pyplot as plt  # noqa: E402
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Cuantas filas ve el MODELO. El DataFrame completo queda para ejecutar_python.
 FILAS_VISIBLES = 40
@@ -44,7 +42,8 @@ _PROHIBIDO_SQL = re.compile(
 
 _MODULOS_PERMITIDOS = {
     "pandas", "numpy", "math", "statistics", "datetime", "itertools",
-    "collections", "re", "json", "matplotlib", "matplotlib.pyplot",
+    "collections", "re", "json", "plotly", "plotly.express",
+    "plotly.graph_objects", "plotly.subplots",
 }
 
 
@@ -180,12 +179,11 @@ class Sesion:
     # -- herramienta 3 ----------------------------------------------------
     def ejecutar_python(self, codigo: str) -> str:
         espacio: dict[str, Any] = {
-            "pd": pd, "np": np, "plt": plt,
+            "pd": pd, "np": np, "px": px, "go": go,
             "__builtins__": _builtins_restringidos(),
             **self.dataframes,
         }
 
-        figuras_previas = set(plt.get_fignums())
         salida = io.StringIO()
         try:
             arbol = ast.parse(textwrap.dedent(codigo))
@@ -214,13 +212,20 @@ class Sesion:
             if isinstance(obj, pd.DataFrame) and not nombre.startswith("_"):
                 self.dataframes[nombre] = obj
 
-        nuevas = [plt.figure(n) for n in plt.get_fignums() if n not in figuras_previas]
+        # Cualquier variable de nivel superior que sea una figura de Plotly se
+        # toma como grafico nuevo generado en esta llamada (el namespace se
+        # arma de cero en cada ejecutar_python, asi que no puede haber una
+        # figura "vieja" colandose aca).
+        nuevas = [obj for nombre, obj in espacio.items()
+                  if isinstance(obj, go.Figure) and not nombre.startswith("_")]
+        if isinstance(valor, go.Figure) and not any(valor is f for f in nuevas):
+            nuevas.append(valor)
         self.figuras.extend(nuevas)
 
         partes = []
         if texto := salida.getvalue().strip():
             partes.append(texto)
-        if valor is not None:
+        if valor is not None and not isinstance(valor, go.Figure):
             partes.append(_tabla(valor) if isinstance(valor, (pd.DataFrame, pd.Series)) else repr(valor))
         if nuevas:
             partes.append(f"[{len(nuevas)} grafico(s) generado(s) y mostrado(s) al usuario]")
@@ -345,13 +350,16 @@ HERRAMIENTAS = [
     {
         "name": "ejecutar_python",
         "description": (
-            "Ejecuta Python con pandas (pd), numpy (np) y matplotlib (plt), con "
-            "todos los DataFrames de consultas previas (df_1, df_2, ...) ya "
-            "cargados. Usala para lo que SQL hace mal: tendencias, crecimiento "
-            "YoY, CAGR, medias moviles, MAT, evolucion de participacion, "
-            "estacionalidad, correlaciones y proyecciones. Los graficos que "
-            "generes se le muestran al usuario. Imprimi con print() o deja una "
-            "expresion en la ultima linea para ver el resultado."
+            "Ejecuta Python con pandas (pd), numpy (np) y Plotly (px = "
+            "plotly.express, go = plotly.graph_objects), con todos los "
+            "DataFrames de consultas previas (df_1, df_2, ...) ya cargados. "
+            "Usala para lo que SQL hace mal: tendencias, crecimiento YoY, "
+            "CAGR, medias moviles, MAT, evolucion de participacion, "
+            "estacionalidad y proyecciones. Cualquier figura de Plotly que "
+            "quede en una variable de nivel superior (o como ultima "
+            "expresion) se le muestra al usuario, interactiva. Imprimi con "
+            "print() o deja una expresion en la ultima linea para ver un "
+            "resultado que no sea grafico."
         ),
         "input_schema": {
             "type": "object",

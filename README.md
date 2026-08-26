@@ -127,8 +127,8 @@ eval/run_eval.py             corredor de la validación
 - **`ejecutar_sql`** — solo SELECT, sobre una conexión abierta en modo lectura.
   Guarda el DataFrame completo como `df_1`, `df_2`… El modelo ve solo las
   primeras filas.
-- **`ejecutar_python`** — pandas, numpy y matplotlib con esos DataFrames ya
-  cargados. Sin acceso al sistema de archivos ni a la red.
+- **`ejecutar_python`** — pandas, numpy y Plotly (gráficos interactivos) con
+  esos DataFrames ya cargados. Sin acceso al sistema de archivos ni a la red.
 
 Toda respuesta numérica es auditable: la interfaz muestra el SQL y el Python que
 se ejecutaron.

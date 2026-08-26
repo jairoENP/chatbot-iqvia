@@ -10,6 +10,6 @@ SQLAlchemy>=2.0
 # --- Solo maquina PERSONAL (chatbot) ---
 anthropic>=0.60
 streamlit>=1.40
-matplotlib>=3.8
+plotly>=5.20
 numpy>=1.26
 PyYAML>=6.0

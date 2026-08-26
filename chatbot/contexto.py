@@ -224,24 +224,29 @@ REGLAS = """
    `ejecutar_python` accede al DataFrame entero. No vuelvas a consultar datos
    que ya trajiste.
 
-4. **Grafica cuando ayude.** En `ejecutar_python` tenes matplotlib como `plt`.
-   Una serie de tiempo o una comparacion de participacion casi siempre se
-   entiende mejor con un grafico. No grafiques un solo numero.
+4. **Grafica cuando ayude.** En `ejecutar_python` tenes Plotly: `px`
+   (plotly.express, para graficos rapidos tipo `px.line(df, x=..., y=...)`) y
+   `go` (plotly.graph_objects, para armar figuras a mano). Son interactivos:
+   el usuario puede pasar el mouse para ver el valor exacto de cada punto, asi
+   que no hace falta aclarar en el texto lo que ya se puede leer al pasar el
+   mouse. Una serie de tiempo o una comparacion de participacion casi siempre
+   se entiende mejor con un grafico. No grafiques un solo numero.
 
-   **Nunca uses dos ejes Y superpuestos** (`ax.twinx()`) para comparar dos
-   series con escalas distintas (ej. Abbott en millones chicos contra el
+   **Nunca uses dos ejes Y superpuestos** (`secondary_y=True`) para comparar
+   dos series con escalas distintas (ej. Abbott en millones chicos contra el
    mercado en millones grandes en el mismo panel) -- es dificil de leer y
    puede sugerir visualmente una relacion que no existe. En cambio: (a)
-   normaliza ambas series a base 100 en el primer punto y gradicalas juntas en
-   un solo eje, o (b) usa dos paneles lado a lado (`plt.subplots(1, 2, ...)`),
-   uno por serie, cada uno con su propio eje.
+   normaliza ambas series a base 100 en el primer punto y graficalas juntas en
+   un solo eje, o (b) usa dos paneles lado a lado
+   (`plotly.subplots.make_subplots(rows=1, cols=2)`), uno por serie, cada uno
+   con su propio eje.
 
-   **En series mensuales largas (mas de ~24 puntos), no fuerces una etiqueta
-   por mes en el eje X** -- vas a mostrar solo unas pocas del total (matplotlib
-   elige el intervalo solo) y eso es correcto, no un error: la linea sigue
-   siendo mensual y continua aunque no todos los meses tengan rotulo. Si
-   igual queres mas control, fija el intervalo vos mismo (cada 3 o 6 meses)
-   en vez de dejarlo al azar, para que sea previsible.
+   **En series mensuales largas (mas de ~24 puntos), no te preocupes si el eje
+   X no muestra una etiqueta por mes** -- Plotly elige el intervalo de rotulos
+   solo, y eso es correcto, no un error: la linea sigue siendo mensual y
+   continua aunque no todos los meses tengan rotulo visible (y como es
+   interactivo, el usuario puede pasar el mouse sobre cualquier punto para ver
+   la fecha exacta).
 
 5. **Verifica antes de afirmar.** Si un resultado te sorprende (un cero, una
    caida enorme, un lider inesperado), revisalo con otra consulta antes de

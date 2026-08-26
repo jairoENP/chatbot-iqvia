@@ -93,7 +93,7 @@ for turno in st.session_state.historial:
             dibujar_paso(paso)
         st.markdown(turno["texto"])
         for figura in turno.get("figuras", []):
-            st.pyplot(figura)
+            st.plotly_chart(figura, use_container_width=True)
 
 # -- turno nuevo ------------------------------------------------------------
 if pregunta := st.chat_input("Pregunta sobre el mercado..."):
@@ -128,7 +128,7 @@ if pregunta := st.chat_input("Pregunta sobre el mercado..."):
 
         figuras = list(agente.sesion.figuras)
         for figura in figuras:
-            st.pyplot(figura)
+            st.plotly_chart(figura, use_container_width=True)
 
     st.session_state.historial.append(
         {"rol": "assistant", "texto": texto, "pasos": pasos, "figuras": figuras}
