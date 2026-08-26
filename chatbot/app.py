@@ -71,10 +71,10 @@ st.session_state.setdefault("historial", [])
 with st.sidebar:
     st.title("💊 Analista IQVIA")
     meta = agente.meta
-    st.metric("Datos hasta", str(meta["FECHA_CORTE"]))
+    st.metric("Datos hasta", meta["FECHA_CORTE"].strftime("%Y-%m-%d"))
     st.caption(
-        f"Desde {meta['FECHA_DESDE']} · {meta['MESES_INCLUIDOS']} meses · "
-        f"{meta['FILAS']:,} filas\n\nSolo ventas reales, sin proyecciones."
+        f"Desde {meta['FECHA_DESDE'].strftime('%Y-%m-%d')} · {meta['MESES_INCLUIDOS']} meses · "
+        f"{meta['FILAS']:,} filas"
     )
     st.divider()
     if st.button("Nueva conversacion", use_container_width=True):
