@@ -77,6 +77,12 @@ with st.sidebar:
         f"{meta['FILAS']:,} filas"
     )
     st.divider()
+    if agente.llamadas_api:
+        st.caption(
+            f"Gasto estimado de la sesion: **US$ {agente.costo_usd:.3f}** "
+            f"({agente.llamadas_api} llamadas a la API)"
+        )
+    st.divider()
     if st.button("Nueva conversacion", use_container_width=True):
         agente.reiniciar()
         st.session_state.historial = []
