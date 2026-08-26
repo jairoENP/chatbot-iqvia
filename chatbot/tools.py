@@ -215,11 +215,18 @@ class Sesion:
         # Cualquier variable de nivel superior que sea una figura de Plotly se
         # toma como grafico nuevo generado en esta llamada (el namespace se
         # arma de cero en cada ejecutar_python, asi que no puede haber una
-        # figura "vieja" colandose aca).
-        nuevas = [obj for nombre, obj in espacio.items()
-                  if isinstance(obj, go.Figure) and not nombre.startswith("_")]
-        if isinstance(valor, go.Figure) and not any(valor is f for f in nuevas):
-            nuevas.append(valor)
+        # figura "vieja" colandose aca). Deduplicamos por identidad: la misma
+        # figura puede estar en dos variables, o en una variable y ademas como
+        # ultima expresion, y mostrarla dos veces rompe la interfaz.
+        candidatas = [obj for nombre, obj in espacio.items()
+                      if isinstance(obj, go.Figure) and not nombre.startswith("_")]
+        if isinstance(valor, go.Figure):
+            candidatas.append(valor)
+
+        nuevas: list = []
+        for figura in candidatas:
+            if not any(figura is vista for vista in nuevas):
+                nuevas.append(figura)
         self.figuras.extend(nuevas)
 
         partes = []

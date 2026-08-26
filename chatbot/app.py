@@ -87,13 +87,20 @@ with st.sidebar:
         st.caption(f"· {ejemplo}")
 
 # -- historial --------------------------------------------------------------
-for turno in st.session_state.historial:
+# st.plotly_chart deriva su id del contenido del grafico, asi que dos figuras
+# iguales chocan ("StreamlitDuplicateElementId"). Le damos una clave explicita
+# a cada una, derivada de su posicion, que es estable entre reruns.
+for indice_turno, turno in enumerate(st.session_state.historial):
     with st.chat_message(turno["rol"]):
         for paso in turno.get("pasos", []):
             dibujar_paso(paso)
         st.markdown(turno["texto"])
-        for figura in turno.get("figuras", []):
-            st.plotly_chart(figura, use_container_width=True)
+        for indice_figura, figura in enumerate(turno.get("figuras", [])):
+            st.plotly_chart(
+                figura,
+                use_container_width=True,
+                key=f"hist-{indice_turno}-{indice_figura}",
+            )
 
 # -- turno nuevo ------------------------------------------------------------
 if pregunta := st.chat_input("Pregunta sobre el mercado..."):
@@ -126,9 +133,15 @@ if pregunta := st.chat_input("Pregunta sobre el mercado..."):
         zona_texto.markdown(texto)
         estado.empty()
 
+        # Prefijo distinto al del historial: este turno todavia no esta ahi, y
+        # en el proximo rerun se redibuja con las claves "hist-".
         figuras = list(agente.sesion.figuras)
-        for figura in figuras:
-            st.plotly_chart(figura, use_container_width=True)
+        for indice_figura, figura in enumerate(figuras):
+            st.plotly_chart(
+                figura,
+                use_container_width=True,
+                key=f"vivo-{len(st.session_state.historial)}-{indice_figura}",
+            )
 
     st.session_state.historial.append(
         {"rol": "assistant", "texto": texto, "pasos": pasos, "figuras": figuras}
