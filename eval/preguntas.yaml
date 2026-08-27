@@ -142,13 +142,15 @@
     Dame los crecimientos del submercado Acerdil. Toma MAT, YTD, SEM, QTR, MTH
     y dame el resultado en una tablita.
   prueba: >-
-    Combina cuatro reglas: (1) hay dos submercados parecidos, ACERDIL y
-    ACERDIL D -- el bot deberia preguntar cual tomar en vez de asumir; (2) cada
-    ventana se compara YoY; (3) el formato es una tabla con la(s) marca(s) en
-    filas y las columnas en orden %G MAT | %G YTD | %G SEM | %G QTR | %G MTH
-    (de la ventana mas amplia a la mas chica, con el prefijo %G), sin explicar
-    entre parentesis que meses cubre cada sigla; (4) nunca debe aparecer el
-    simbolo $ en el texto (rompe el render de Streamlit).
+    Combina cuatro reglas: (1) hay submercados parecidos entre si (en este
+    caso ACERDIL y ACERDIL D, pero es un patron que se repite con otros
+    nombres en la base) -- el bot deberia preguntar cual tomar en vez de
+    asumir; (2) cada ventana se compara YoY; (3) el formato es una tabla con
+    la(s) marca(s) en filas y las columnas en orden
+    %G MAT | %G YTD | %G SEM | %G QTR | %G MTH (de la ventana mas amplia a la
+    mas chica, con el prefijo %G), sin explicar entre parentesis que meses
+    cubre cada sigla; (4) nunca debe aparecer el simbolo $ en el texto (rompe
+    el render de Streamlit).
   debe_contener: []
   # Sin chequeo automatico: lo que hay que revisar a mano es que (a) el bot
   # pregunte por la ambiguedad ACERDIL vs ACERDIL D antes de calcular algo, y
