@@ -163,6 +163,69 @@
     SELECT SUB_MERCADO, ROUND(SUM(DOLARES),0) AS DOLARES_HISTORICO
     FROM vw_ventas WHERE SUB_MERCADO LIKE 'ACERDIL%' GROUP BY 1
 
+- id: evolution_index
+  pregunta: Cual es el evolution index de Acerdil D en su submercado?
+  prueba: >-
+    EI = (100+crecimiento_entidad)/(100+crecimiento_contexto)*100, ambos YoY,
+    periodo MAT por defecto. ACERDIL D crecio +42,4% MAT y su sub-mercado
+    +34,8%, asi que EI = 105,6 (gana share). El contexto debe INCLUIR a la
+    marca (el sub-mercado completo), no ser "el resto" -- si excluye a ACERDIL D
+    el denominador cambia y el EI da mal. Ademas deberia decir explicitamente
+    contra que contexto lo calculo.
+  debe_contener: ["105", "106"]
+  modo_contener: cualquiera
+  verificacion: |
+    -- EI de ACERDIL D contra su sub-mercado, MAT jul2025-jun2026 vs PY:
+    --   marca    216.269 USD (PY 151.830) -> +42,4%
+    --   contexto 449.382 USD (PY 333.300) -> +34,8%
+    --   EI = 142,4 / 134,8 * 100 = 105,6
+    WITH v AS (
+      SELECT MARCA,
+        SUM(CASE WHEN FECHA >= DATE '2025-07-01' THEN DOLARES END) AS ACTUAL,
+        SUM(CASE WHEN FECHA >= DATE '2024-07-01'
+                  AND FECHA <= DATE '2025-06-01' THEN DOLARES END) AS PY
+      FROM vw_ventas WHERE SUB_MERCADO = 'ACERDIL D' GROUP BY 1
+    )
+    SELECT
+      ROUND(100.0*(SUM(CASE WHEN MARCA='ACERDIL D' THEN ACTUAL END)
+           / SUM(CASE WHEN MARCA='ACERDIL D' THEN PY END) - 1),1) AS G_MARCA,
+      ROUND(100.0*(SUM(ACTUAL)/SUM(PY) - 1),1) AS G_CONTEXTO,
+      ROUND((100 + 100.0*(SUM(CASE WHEN MARCA='ACERDIL D' THEN ACTUAL END)
+            / SUM(CASE WHEN MARCA='ACERDIL D' THEN PY END) - 1))
+          / (100 + 100.0*(SUM(ACTUAL)/SUM(PY) - 1)) * 100, 1) AS EI
+    FROM v
+
+- id: evolution_index_contexto_cambia
+  pregunta: Cual es el evolution index de Acerdil D contra su molecula?
+  prueba: >-
+    Mismo EI, distinto contexto: contra la molecula ENALAPRIL -
+    HYDROCHLOROTHIAZIDE (que crecio +46,5%, mas que el sub-mercado) el EI da
+    97,2, o sea PIERDE share -- la conclusion se invierte respecto del caso
+    anterior. Prueba que el bot usa el contexto que le piden y no siempre el
+    sub-mercado por defecto.
+  debe_contener: ["97"]
+  no_debe_contener: ["105,6", "105.6"]
+  verificacion: |
+    WITH ctx AS (
+      SELECT
+        SUM(CASE WHEN FECHA >= DATE '2025-07-01' THEN DOLARES END) AS ACTUAL,
+        SUM(CASE WHEN FECHA >= DATE '2024-07-01'
+                  AND FECHA <= DATE '2025-06-01' THEN DOLARES END) AS PY
+      FROM vw_ventas
+      WHERE MOLECULA = (SELECT MOLECULA FROM vw_ventas WHERE MARCA='ACERDIL D' LIMIT 1)
+    ), marca AS (
+      SELECT
+        SUM(CASE WHEN FECHA >= DATE '2025-07-01' THEN DOLARES END) AS ACTUAL,
+        SUM(CASE WHEN FECHA >= DATE '2024-07-01'
+                  AND FECHA <= DATE '2025-06-01' THEN DOLARES END) AS PY
+      FROM vw_ventas WHERE MARCA = 'ACERDIL D'
+    )
+    SELECT ROUND(100.0*(marca.ACTUAL/marca.PY - 1),1) AS G_MARCA,
+           ROUND(100.0*(ctx.ACTUAL/ctx.PY - 1),1)     AS G_MOLECULA,
+           ROUND((100 + 100.0*(marca.ACTUAL/marca.PY - 1))
+               / (100 + 100.0*(ctx.ACTUAL/ctx.PY - 1)) * 100, 1) AS EI
+    FROM marca, ctx
+
 - id: conteo_presentaciones
   pregunta: Cuantas presentaciones de Abbott tuvieron ventas en junio de 2026?
   prueba: >-

@@ -186,6 +186,41 @@ trimestre inmediato anterior (QoQ), salvo que el usuario lo pida explicitamente
 aplica a MTH, QTR, SEM, MAT y YTD por igual: siempre year-over-year salvo
 pedido explicito de lo contrario.
 
+**EVOLUTION INDEX (EI).** Metrica estandar de IQVIA: compara TU crecimiento
+contra el crecimiento de un CONTEXTO, en base 100.
+
+    EI = (100 + crecimiento_entidad) / (100 + crecimiento_contexto) * 100
+
+Lectura: `EI > 100` -> crecEs mas rapido que el contexto, GANAS share.
+`EI < 100` -> crecEs menos, PERDES share. `EI = 100` -> share estable.
+Los dos crecimientos son YoY (mismo periodo del anio anterior), como toda
+comparacion de crecimiento. El periodo por defecto es MAT salvo que pidan
+otra ventana ("EI del QTR", etc.).
+
+**El CONTEXTO es variable y cambia la conclusion, asi que SIEMPRE hay que
+decir cual se uso.** El contexto es el mismo universo pero sin restringir a
+la entidad analizada: si mirAs una marca dentro de un sub-mercado, el
+contexto es el sub-mercado completo (esa marca incluida); si mirAs Abbott
+en el mercado total, el contexto es todo el mercado. Puede ser tambien una
+molecula, una clase terapeutica o una region. Ejemplo real (ACERDIL D,
+MAT a jun-2026): contra su sub-mercado da EI 105,6 (gana share), pero
+contra su molecula da EI 97,2 (pierde share) -- misma marca, distinta
+lectura. Si la pregunta no deja claro el contexto y hay mas de uno
+razonable, preguntá antes de calcular.
+
+Reglas de calculo:
+- El contexto SIEMPRE incluye a la entidad, nunca la excluyas (es el total,
+  no "el resto"). Esto es coherente con la regla de que "el mercado" incluye
+  a Abbott.
+- NUNCA promedies EIs de varias filas. Si necesitas el EI de un conjunto,
+  recalculalo sumando los dolares del conjunto y del contexto. (Verificacion
+  util: los EI de un desglose, ponderados por el valor del anio anterior de
+  cada fila, dan exactamente 100.)
+- Si la entidad no tiene ventas en el periodo anterior, el crecimiento no
+  existe: devolve vacio, no cero ni infinito.
+- Si el contexto cayo exactamente -100% (se fue a cero), el EI queda
+  indefinido: decilo en vez de dividir por cero.
+
 **Formato de tabla para "dame los crecimientos" (varias ventanas a la vez).**
 Cuando pidan el crecimiento en varias ventanas juntas (ej. "dame los
 crecimientos de MAT, YTD, SEM, QTR, MTH"), arma UNA sola tabla: marcas (o
