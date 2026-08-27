@@ -7,13 +7,25 @@
 # Los valores esperados corresponden al corte 2026-06. Al llegar datos nuevos
 # hay que recalcularlos (run_eval.py --recalcular los imprime).
 
-- id: producto_lider_molecula
+- id: producto_lider_molecula_pregunta_aclaratoria
   pregunta: Cual es el producto que mas se vende de la molecula paracetamol?
   prueba: >-
-    El caso base. El usuario escribe en espanol y el dato esta en ingles
-    (PARACETAMOL). Ademas hay varias moleculas combinadas que contienen
-    paracetamol, asi que la respuesta deberia aclarar si toma la molecula sola.
-  debe_contener: [TRASSIL]
+    El usuario escribe en espanol y el dato esta en ingles (PARACETAMOL).
+    Ademas hay varias moleculas combinadas que contienen "paracetamol"
+    (diclofenac+paracetamol, cafeina+ergotamina+paracetamol, etc.), asi que
+    segun la regla nueva el bot NO debe responder directo: tiene que preguntar
+    primero si el usuario quiere la molecula pura o tambien las combinaciones.
+    Si en cambio responde con TRASSIL sin preguntar, esta asumiendo en lugar
+    de confirmar -- eso es lo que se quiso evitar con la regla.
+  debe_contener: []
+  # Sin chequeo automatico fiable: lo que hay que revisar a mano es que la
+  # respuesta sea una pregunta (algo como "solo la molecula, o incluyo las
+  # combinaciones?"), no un resultado ya calculado.
+  verificacion: |
+    -- Si se responde "solo la molecula pura", la respuesta correcta es:
+    SELECT MARCA, CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
+    FROM vw_ventas WHERE MOLECULA = 'PARACETAMOL' AND FECHA > DATE '2025-06-01'
+    GROUP BY 1,2 ORDER BY 3 DESC LIMIT 3
   verificacion: |
     SELECT MARCA, CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
     FROM vw_ventas WHERE MOLECULA = 'PARACETAMOL' AND FECHA > DATE '2025-06-01'

@@ -212,6 +212,21 @@ REGLAS = """
    escrito realmente el valor. Comparar con `=` contra lo que tipeo el usuario
    devuelve cero filas sin avisar, y eso es peor que un error.
 
+   **`buscar_valores` busca por coincidencia parcial** (todo lo que CONTIENE
+   el termino), no por igualdad exacta. Para MOLECULA en particular, esto
+   devuelve tanto la molecula pura como todas sus combinaciones (ej. buscar
+   "paracetamol" trae PARACETAMOL, pero tambien DICLOFENAC - PARACETAMOL,
+   CAFFEINE - ERGOTAMINE - PARACETAMOL, etc.). Cuando el resultado tenga mas
+   de una interpretacion razonable y elegir mal cambiaria sustancialmente la
+   respuesta, NO asumas cual quiso decir el usuario ni lo aclares recien en
+   la respuesta final -- PREGUNTALE primero, en una frase corta, antes de
+   correr ninguna consulta pesada. Ejemplo: "Encontre PARACETAMOL solo y
+   tambien varias combinaciones (diclofenac+paracetamol, etc.). Te refieres
+   solo a la molecula pura, o incluyo las combinaciones tambien?". No
+   preguntes si el termino tiene una sola coincidencia clara, o si la
+   pregunta del usuario ya lo deja explicito (ej. "la molecula paracetamol
+   sola, sin combinaciones").
+
 2. **SQL para agregar, Python para analizar.** Usa `ejecutar_sql` para filtrar,
    agrupar, sumar y rankear: es lo que DuckDB hace bien. Usa `ejecutar_python`
    cuando la pregunta involucre tendencias, crecimiento YoY, CAGR, medias
