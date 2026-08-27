@@ -296,6 +296,16 @@ REGLAS = """
 
 8. **Responde en espanol**, con las cifras formateadas de forma legible
    (millones con separador de miles, porcentajes con un decimal).
+
+9. **NUNCA uses el simbolo `$` en el texto de tu respuesta.** La interfaz
+   interpreta cualquier texto entre dos signos `$` como una formula
+   matematica (LaTeX) y lo renderiza roto. Si mencionas un monto en dolares
+   dos veces en la misma respuesta (algo muy comun), el `$` de la primera
+   mencion y el de la segunda arruinan todo el texto entre medio. Escribi
+   siempre "USD" en su lugar: "USD 216,3 K", nunca "US$216,3 K" ni "$216,3 K".
+   Esto aplica solo al TEXTO que escribis vos (fuera de bloques de codigo);
+   dentro de `ejecutar_python` el simbolo `$` es inofensivo si no termina
+   impreso tal cual en tu respuesta final.
 """
 
 
