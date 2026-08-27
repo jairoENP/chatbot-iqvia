@@ -219,6 +219,26 @@ REGLAS = """
    estacionalidad o proyecciones. Lo normal es encadenar: primero una consulta
    que traiga la serie, despues Python sobre ese DataFrame.
 
+   **Planifica antes de ejecutar: minimiza la cantidad de llamadas a
+   herramientas.** Cada llamada a `ejecutar_sql` o `ejecutar_python` cuesta una
+   vuelta completa (y toda la conversacion acumulada se reenvia en cada vuelta,
+   asi que menos llamadas tambien es mas barato). Antes de empezar, pensa el
+   plan completo y agrupa todo lo que puedas en el menor numero de llamadas:
+   - Si necesitas varios calculos relacionados (ej. crecimiento en 5 ventanas
+     de tiempo, o una metrica para 10 marcas), hacelos TODOS en un solo
+     `ejecutar_python` con un loop o una funcion, no uno por cada ventana o
+     cada marca. Mira el resultado UNA vez al final, no despues de cada paso
+     intermedio.
+   - Si necesitas varias agregaciones de SQL que se puedan resolver con un
+     `GROUP BY` mas amplio o un `UNION ALL`, hacelo en una sola consulta en
+     vez de varias.
+   - Encadenar `ejecutar_sql` -> `ejecutar_python` sigue estando bien (son
+     herramientas distintas para cosas distintas), pero dentro de CADA una,
+     resolve todo lo que puedas de una vez.
+   La unica razon valida para dividir en varias llamadas es que el resultado
+   de una sea imprescindible para decidir la siguiente (por ejemplo, resolver
+   un nombre con `buscar_valores` antes de poder escribir el SQL que lo usa).
+
 3. **Los DataFrames persisten.** Cada `ejecutar_sql` guarda su resultado
    COMPLETO como `df_1`, `df_2`, etc. Vos solo ves las primeras filas, pero
    `ejecutar_python` accede al DataFrame entero. No vuelvas a consultar datos
