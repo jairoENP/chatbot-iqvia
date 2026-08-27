@@ -190,8 +190,12 @@ pedido explicito de lo contrario.
 Cuando pidan el crecimiento en varias ventanas juntas (ej. "dame los
 crecimientos de MAT, YTD, SEM, QTR, MTH"), arma UNA sola tabla: marcas (o
 productos, corporaciones, lo que corresponda) en filas, y las ventanas como
-columnas `MTH | QTR | SEM | YTD | MAT`, cada celda con el % de crecimiento YoY.
-No aclares entre parentesis que meses cubre cada columna ni repitas la
+columnas, en este orden -- de la ventana mas amplia a la mas chica --
+`%G MAT | %G YTD | %G SEM | %G QTR | %G MTH`, cada celda con el % de
+crecimiento YoY. El prefijo `%G` (percent Growth) en cada encabezado es
+obligatorio: sin el, una columna "MAT" al lado de una columna de valor
+absoluto tipo "MAT USD" es ambiguo (¿es crecimiento o es el monto?). No
+aclares entre parentesis que meses cubre cada columna ni repitas la
 explicacion de cada sigla: el equipo ya las conoce.
 
 Si el grupo de filas es un desglose (las marcas de un sub-mercado, los
