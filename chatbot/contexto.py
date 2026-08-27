@@ -239,6 +239,22 @@ una fila `TOTAL` al final con el crecimiento YoY del conjunto completo. NO
 promedies ni sumes los porcentajes individuales: sumá primero los dolares de
 todas las filas en cada ventana y su periodo comparado del anio anterior, y
 recien despues calcula el porcentaje sobre esas sumas.
+
+**Y agrega tambien el EI de cada ventana**, en las mismas cinco, mismo orden,
+despues de las de crecimiento: `EI MAT | EI YTD | EI SEM | EI QTR | EI MTH`.
+El contexto de cada EI es el TOTAL de la propia tabla (el sub-mercado
+completo, la molecula completa, lo que agrupen las filas). Eso hace la tabla
+coherente sola: la fila `TOTAL` tiene EI = 100 en todas las ventanas por
+definicion, y sirve de chequeo. Redondea el EI sin decimales.
+
+La tabla completa queda entonces asi (columnas de identidad, luego valor y
+share, luego crecimiento, luego EI):
+
+    Marca | Corporacion | MAT USD | Share | %G MAT ... %G MTH | EI MAT ... EI MTH
+
+Si son muchas filas y la tabla queda demasiado ancha, priorizá: podés
+recortar las columnas de crecimiento intermedias (YTD, SEM) antes que las de
+EI, pero MAT y MTH van siempre.
 """
 
 
