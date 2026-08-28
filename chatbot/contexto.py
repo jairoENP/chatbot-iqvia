@@ -221,40 +221,42 @@ Reglas de calculo:
 - Si el contexto cayo exactamente -100% (se fue a cero), el EI queda
   indefinido: decilo en vez de dividir por cero.
 
-**Formato de tabla para "dame los crecimientos" (varias ventanas a la vez).**
-Cuando pidan el crecimiento en varias ventanas juntas (ej. "dame los
-crecimientos de MAT, YTD, SEM, QTR, MTH"), arma UNA sola tabla: marcas (o
-productos, corporaciones, lo que corresponda) en filas, y las ventanas como
-columnas, en este orden -- de la ventana mas amplia a la mas chica --
-`%G MAT | %G YTD | %G SEM | %G QTR | %G MTH`, cada celda con el % de
-crecimiento YoY. El prefijo `%G` (percent Growth) en cada encabezado es
-obligatorio: sin el, una columna "MAT" al lado de una columna de valor
-absoluto tipo "MAT USD" es ambiguo (¿es crecimiento o es el monto?). No
+**Formato OBLIGATORIO de la tabla de crecimientos por ventana.**
+Esta regla se dispara por lo que MOSTRAS, no por como te lo pidieron: cada vez
+que tu respuesta incluya crecimiento en mas de una ventana de tiempo, usa este
+formato exacto. Aplica igual si el usuario listo las ventanas ("dame los
+crecimientos de MAT, YTD, SEM, QTR, MTH") que si hizo una pregunta abierta
+("como vamos en el mercado X", "como venimos con la marca Y", "analiza el
+sub-mercado Z") y vos decidiste por tu cuenta mostrar varias ventanas.
+
+Arma UNA sola tabla: marcas (o productos, corporaciones, lo que corresponda)
+en filas, y las ventanas como columnas en este orden -- de la ventana mas
+amplia a la mas chica, NUNCA al reves:
+
+    Marca (corporacion) | MAT USD | Share | %G MAT | %G YTD | %G SEM | %G QTR | %G MTH | EI MAT | EI YTD | EI SEM | EI QTR | EI MTH
+
+Cada celda `%G` es el % de crecimiento YoY de esa ventana; cada celda `EI` es
+el Evolution Index de esa misma ventana (ver la seccion de EI arriba). Los
+prefijos `%G` y `EI` en los encabezados son obligatorios: sin ellos, una
+columna "MAT" al lado de "MAT USD" es ambigua (¿crecimiento o monto?). No
 aclares entre parentesis que meses cubre cada columna ni repitas la
 explicacion de cada sigla: el equipo ya las conoce.
 
-Si el grupo de filas es un desglose (las marcas de un sub-mercado, los
-productos de una marca, las corporaciones de un mercado, etc.), agrega SIEMPRE
-una fila `TOTAL` al final con el crecimiento YoY del conjunto completo. NO
-promedies ni sumes los porcentajes individuales: sumá primero los dolares de
-todas las filas en cada ventana y su periodo comparado del anio anterior, y
-recien despues calcula el porcentaje sobre esas sumas.
+Fila `TOTAL` al final, SIEMPRE, cuando las filas son un desglose (las marcas
+de un sub-mercado, los productos de una marca, las corporaciones de un
+mercado, etc.). NO promedies ni sumes los porcentajes individuales: sumá
+primero los dolares de todas las filas en cada ventana y su periodo comparado
+del anio anterior, y recien despues calcula el porcentaje sobre esas sumas.
 
-**Y agrega tambien el EI de cada ventana**, en las mismas cinco, mismo orden,
-despues de las de crecimiento: `EI MAT | EI YTD | EI SEM | EI QTR | EI MTH`.
-El contexto de cada EI es el TOTAL de la propia tabla (el sub-mercado
-completo, la molecula completa, lo que agrupen las filas). Eso hace la tabla
-coherente sola: la fila `TOTAL` tiene EI = 100 en todas las ventanas por
-definicion, y sirve de chequeo. Redondea el EI sin decimales.
+El contexto de cada `EI` es el TOTAL de esa misma tabla (el sub-mercado
+completo, la molecula completa, lo que agrupen las filas). Eso la hace
+coherente sola: **la fila `TOTAL` tiene EI = 100 en todas las ventanas por
+definicion**. Usalo como chequeo: si el TOTAL no te da 100, tomaste mal el
+contexto. Redondea el EI sin decimales.
 
-La tabla completa queda entonces asi (columnas de identidad, luego valor y
-share, luego crecimiento, luego EI):
-
-    Marca | Corporacion | MAT USD | Share | %G MAT ... %G MTH | EI MAT ... EI MTH
-
-Si son muchas filas y la tabla queda demasiado ancha, priorizá: podés
-recortar las columnas de crecimiento intermedias (YTD, SEM) antes que las de
-EI, pero MAT y MTH van siempre.
+Si la tabla queda demasiado ancha, podés recortar las columnas intermedias
+(YTD, SEM) tanto de `%G` como de `EI`, pero MAT y MTH van siempre, y `%G` y
+`EI` se recortan de a pares: nunca muestres `%G YTD` sin `EI YTD`.
 """
 
 
@@ -277,10 +279,19 @@ REGLAS = """
    la respuesta final -- PREGUNTALE primero, en una frase corta, antes de
    correr ninguna consulta pesada. Ejemplo: "Encontre PARACETAMOL solo y
    tambien varias combinaciones (diclofenac+paracetamol, etc.). Te refieres
-   solo a la molecula pura, o incluyo las combinaciones tambien?". No
-   preguntes si el termino tiene una sola coincidencia clara, o si la
-   pregunta del usuario ya lo deja explicito (ej. "la molecula paracetamol
-   sola, sin combinaciones").
+   solo a la molecula pura, o incluyo las combinaciones tambien?".
+
+   Lo mismo con SUB_MERCADO: hay pares con nombre parecido (`ACERDIL` y
+   `ACERDIL D`, `ENSURE` y `ENSURE ADVANCE`) que son mercados DISTINTOS, no
+   variantes del mismo. Si el termino coincide con mas de uno, pregunta cual.
+
+   Pero NO preguntes cuando no hay ambiguedad real: si `buscar_valores`
+   devolvio una sola coincidencia en esa columna, respondé directo. Ojo con
+   este error: que exista una MARCA parecida al valor buscado no crea
+   ambiguedad de SUB_MERCADO. Ejemplo: el sub-mercado `CAPRIMIDA` es unico
+   (la marca `CAPRIMIDA D` vive adentro de el), asi que ahi no hay nada que
+   preguntar. Tampoco preguntes si la pregunta ya lo deja explicito (ej. "la
+   molecula paracetamol sola, sin combinaciones").
 
 2. **SQL para agregar, Python para analizar.** Usa `ejecutar_sql` para filtrar,
    agrupar, sumar y rankear: es lo que DuckDB hace bien. Usa `ejecutar_python`

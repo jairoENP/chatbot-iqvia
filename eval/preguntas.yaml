@@ -228,6 +228,24 @@
                / (100 + 100.0*(ctx.ACTUAL/ctx.PY - 1)) * 100, 1) AS EI
     FROM marca, ctx
 
+- id: pregunta_abierta_formato_tabla
+  pregunta: Como vamos en el mercado caprimida?
+  prueba: >-
+    Pregunta ABIERTA (no pide las ventanas explicitamente), pero si el bot
+    decide mostrar crecimiento en varias ventanas, la tabla debe salir con el
+    formato obligatorio igual: columnas de MAT a MTH (no al reves), con los
+    prefijos %G y EI, y fila TOTAL con EI = 100. Ademas NO debe preguntar por
+    ambiguedad: el sub-mercado CAPRIMIDA es unico (la marca CAPRIMIDA D vive
+    adentro, pero no existe un sub-mercado con ese nombre).
+  debe_contener: [CAPRIMIDA]
+  # Revisar a mano: orden MAT->MTH, prefijos %G y EI, fila TOTAL con EI 100,
+  # y que NO haya preguntado cual CAPRIMIDA.
+  verificacion: |
+    -- Solo existe un sub-mercado CAPRIMIDA (0 variantes con nombre parecido):
+    SELECT SUB_MERCADO, COUNT(DISTINCT COD_PRODUCTO) AS PRESENTACIONES,
+           COUNT(DISTINCT MARCA) AS MARCAS
+    FROM vw_ventas WHERE SUB_MERCADO LIKE '%CAPRIMIDA%' GROUP BY 1
+
 - id: conteo_presentaciones
   pregunta: Cuantas presentaciones de Abbott tuvieron ventas en junio de 2026?
   prueba: >-
