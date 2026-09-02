@@ -1,4 +1,4 @@
-# Analista IQVIA — chatbot sobre el mercado farmacéutico boliviano
+# Sniper IA — chatbot sobre el mercado farmacéutico boliviano
 
 Chat en lenguaje natural sobre los datos de IQVIA que hoy viven en el modelo
 estrella de SQL Server (`BI_BOLIVIA.dwh`). Permite preguntar cosas como

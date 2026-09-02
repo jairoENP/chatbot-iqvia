@@ -23,7 +23,7 @@ EJEMPLOS = [
     "Que marcas de la competencia crecieron mas el ultimo ano?",
 ]
 
-st.set_page_config(page_title="Analista IQVIA", page_icon="💊", layout="wide")
+st.set_page_config(page_title="Sniper IA", page_icon="🎯", layout="wide")
 
 
 def dibujar_paso(paso: Paso) -> None:
@@ -69,7 +69,7 @@ st.session_state.setdefault("historial", [])
 
 # -- barra lateral ----------------------------------------------------------
 with st.sidebar:
-    st.title("💊 Analista IQVIA")
+    st.title("🎯 Sniper IA")
     meta = agente.meta
     st.metric("Datos hasta", meta["FECHA_CORTE"].strftime("%Y-%m-%d"))
     st.caption(
