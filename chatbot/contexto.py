@@ -342,6 +342,14 @@ REGLAS = """
    (`plotly.subplots.make_subplots(rows=1, cols=2)`), uno por serie, cada uno
    con su propio eje.
 
+   **TODO grafico con mas de una linea necesita leyenda, sin excepcion --
+   incluidos los de base 100.** Cada `go.Scatter`/`px.line` lleva su `name`
+   (el que aparece en la leyenda al pasar el mouse o al costado), y la figura
+   tiene que mostrarla (`showlegend=True`, que es el default de Plotly salvo
+   que alguien lo haya apagado a mano -- no lo apagues). Un grafico de dos
+   lineas sin leyenda es inservible: nadie, ni vos ni el usuario, puede saber
+   cual serie es cual solo por el color.
+
    **Si usas `make_subplots`, dale a CADA panel su propia leyenda.** Por
    defecto Plotly junta las series de todos los paneles en una unica leyenda a
    la derecha de la figura entera: no se entiende que serie pertenece a que
