@@ -342,6 +342,26 @@ REGLAS = """
    (`plotly.subplots.make_subplots(rows=1, cols=2)`), uno por serie, cada uno
    con su propio eje.
 
+   **Si usas `make_subplots`, dale a CADA panel su propia leyenda.** Por
+   defecto Plotly junta las series de todos los paneles en una unica leyenda a
+   la derecha de la figura entera: no se entiende que serie pertenece a que
+   panel, y encima le roba ancho a los graficos. Asignale a cada trace la
+   leyenda de su panel con `legend='legend'` / `legend='legend2'`, y poné cada
+   leyenda horizontal debajo de su propio grafico:
+
+       fig.add_trace(go.Scatter(..., legend='legend'),  row=1, col=1)
+       fig.add_trace(go.Scatter(..., legend='legend2'), row=1, col=2)
+       fig.update_layout(
+           legend =dict(orientation='h', yanchor='top', y=-0.15,
+                        xanchor='center', x=0.225),
+           legend2=dict(orientation='h', yanchor='top', y=-0.15,
+                        xanchor='center', x=0.775),
+           margin=dict(b=90),   # espacio abajo para las leyendas
+       )
+
+   (`x=0.225` y `x=0.775` centran cada leyenda bajo su panel en un layout de
+   dos columnas. Con 3 paneles usá 0.15 / 0.5 / 0.85 y `legend3`.)
+
    **En series mensuales largas (mas de ~24 puntos), no te preocupes si el eje
    X no muestra una etiqueta por mes** -- Plotly elige el intervalo de rotulos
    solo, y eso es correcto, no un error: la linea sigue siendo mensual y
