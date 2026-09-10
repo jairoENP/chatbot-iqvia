@@ -7,6 +7,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import duckdb
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -45,9 +46,29 @@ def dibujar_paso(paso: Paso) -> None:
         st.text(paso.salida[:3000])
 
 
-@st.cache_resource(show_spinner="Conectando...")
-def crear_agente():
-    return Agente()
+@st.cache_resource(show_spinner="Abriendo la base...")
+def abrir_base():
+    """Conexion COMPARTIDA a la base, de solo lectura.
+
+    Esto si conviene compartirlo entre usuarios: el archivo se abre una sola
+    vez y nadie puede escribir. Cada sesion se queda con su propio cursor.
+    """
+    return duckdb.connect(str(RUTA_DB_POR_DEFECTO), read_only=True)
+
+
+def obtener_agente() -> Agente:
+    """Un Agente POR SESION de navegador.
+
+    OJO: no usar `st.cache_resource` para el Agente. Ese decorador devuelve el
+    MISMO objeto a todos los usuarios, y el Agente guarda la conversacion
+    (`mensajes`), los DataFrames (`df_1`, `df_2`...) y las figuras. Compartirlo
+    mezclaria las conversaciones de dos personas que usen la app a la vez, sin
+    que ninguna lo note: cada una veria su propio chat en pantalla mientras
+    Claude recibe los dos entremezclados.
+    """
+    if "agente" not in st.session_state:
+        st.session_state.agente = Agente(conexion_base=abrir_base())
+    return st.session_state.agente
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +81,7 @@ if not RUTA_DB_POR_DEFECTO.exists():
     st.stop()
 
 try:
-    agente = crear_agente()
+    agente = obtener_agente()
 except RuntimeError as exc:
     st.error(str(exc))
     st.stop()
@@ -78,8 +99,10 @@ with st.sidebar:
     )
     st.divider()
     if agente.llamadas_api:
+        # Es el gasto de ESTA pestania, no el total del equipo: cada sesion
+        # tiene su propio Agente. El acumulado real esta en la consola.
         st.caption(
-            f"Gasto estimado de la sesion: **US$ {agente.costo_usd:.3f}** "
+            f"Gasto estimado de tu sesion: **US$ {agente.costo_usd:.3f}** "
             f"({agente.llamadas_api} llamadas a la API)"
         )
     st.divider()

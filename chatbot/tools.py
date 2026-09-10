@@ -83,7 +83,13 @@ class Paso:
 
 @dataclass
 class Sesion:
+    """Estado de UNA conversacion: su cursor, sus DataFrames, sus pasos.
+
+    Nunca compartas una Sesion entre usuarios: `dataframes` (df_1, df_2...) y
+    `figuras` son de la conversacion que los produjo.
+    """
     ruta_db: Path
+    conexion_base: duckdb.DuckDBPyConnection | None = None
     con: duckdb.DuckDBPyConnection = field(init=False)
     dataframes: dict[str, pd.DataFrame] = field(default_factory=dict)
     figuras: list = field(default_factory=list)
@@ -92,7 +98,13 @@ class Sesion:
 
     def __post_init__(self) -> None:
         # read_only es la garantia real de que el agente no puede escribir.
-        self.con = duckdb.connect(str(self.ruta_db), read_only=True)
+        if self.conexion_base is not None:
+            # Cursor propio sobre una conexion compartida: el archivo se abre
+            # una sola vez, pero cada sesion consulta en su propio hilo sin
+            # pisar a las demas (una conexion de DuckDB no es thread-safe).
+            self.con = self.conexion_base.cursor()
+        else:
+            self.con = duckdb.connect(str(self.ruta_db), read_only=True)
 
     def cerrar(self) -> None:
         self.con.close()

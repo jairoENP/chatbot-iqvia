@@ -42,7 +42,12 @@ class Evento:
 
 
 class Agente:
-    def __init__(self, ruta_db: Path | str = RUTA_DB_POR_DEFECTO, modelo: str = MODELO):
+    def __init__(
+        self,
+        ruta_db: Path | str = RUTA_DB_POR_DEFECTO,
+        modelo: str = MODELO,
+        conexion_base=None,
+    ):
         load_dotenv(Path(__file__).resolve().parent.parent / ".env")
         if not os.getenv("ANTHROPIC_API_KEY"):
             raise RuntimeError(
@@ -52,7 +57,7 @@ class Agente:
 
         self.modelo = modelo
         self.cliente = anthropic.Anthropic()
-        self.sesion = Sesion(Path(ruta_db))
+        self.sesion = Sesion(Path(ruta_db), conexion_base)
         self.meta = leer_meta(ruta_db)
         self.mensajes: list[dict] = []
         self.costo_usd = 0.0       # acumulado de la sesion
