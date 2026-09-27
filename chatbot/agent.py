@@ -16,20 +16,25 @@ from dotenv import load_dotenv
 from contexto import RUTA_DB_POR_DEFECTO, construir_system_prompt, leer_meta
 from tools import HERRAMIENTAS, Paso, Sesion
 
-MODELO = "claude-opus-5"
+MODELO = "claude-opus-5-5"
 MAX_TOKENS = 16_000
+# Cuanto razonamiento intermedio gasta el modelo antes de responder.
+# "high" da analisis mas cuidadosos; "medium" cuesta y tarda menos.
+ESFUERZO = "medium"
 # Tope de vueltas del bucle: evita que un error repetido consuma la cuenta.
 MAX_ITERACIONES = 12
 
 # Precio por millon de tokens, para estimar el gasto en pantalla.
 # Fuente: precios de lista de la API de Anthropic.
+# "cache_lectura" es el multiplicador sobre la entrada al leer del cache: es
+# 0,1 en casi todos los modelos, pero Opus 5.5 lo cobra a la mitad (0,05).
 PRECIOS_USD = {
-    "claude-opus-5":   {"entrada": 5.0, "salida": 25.0},
-    "claude-sonnet-5": {"entrada": 2.0, "salida": 10.0},
-    "claude-haiku-4-5": {"entrada": 1.0, "salida": 5.0},
+    "claude-opus-5-5": {"entrada": 4.0, "salida": 20.0, "cache_lectura": 0.05},
+    "claude-opus-5":   {"entrada": 5.0, "salida": 25.0, "cache_lectura": 0.10},
+    "claude-sonnet-5": {"entrada": 2.0, "salida": 10.0, "cache_lectura": 0.10},
+    "claude-haiku-4-5": {"entrada": 1.0, "salida": 5.0, "cache_lectura": 0.10},
 }
-# Lo leido del cache cuesta ~10% de la entrada normal; escribirlo, ~25% mas.
-FACTOR_CACHE_LECTURA = 0.1
+# Escribir el cache de 5 minutos cuesta 25% mas que la entrada normal.
 FACTOR_CACHE_ESCRITURA = 1.25
 
 
@@ -47,6 +52,7 @@ class Agente:
         ruta_db: Path | str = RUTA_DB_POR_DEFECTO,
         modelo: str = MODELO,
         conexion_base=None,
+        esfuerzo: str = ESFUERZO,
     ):
         load_dotenv(Path(__file__).resolve().parent.parent / ".env")
         if not os.getenv("ANTHROPIC_API_KEY"):
@@ -56,6 +62,7 @@ class Agente:
             )
 
         self.modelo = modelo
+        self.esfuerzo = esfuerzo
         self.cliente = anthropic.Anthropic()
         self.sesion = Sesion(Path(ruta_db), conexion_base)
         self.meta = leer_meta(ruta_db)
@@ -154,7 +161,7 @@ class Agente:
             tools=HERRAMIENTAS,
             messages=self.mensajes,
             thinking={"type": "adaptive", "display": "summarized"},
-            output_config={"effort": "high"},
+            output_config={"effort": self.esfuerzo},
         ) as flujo:
             for evento in flujo:
                 if evento.type != "content_block_delta":
@@ -182,7 +189,7 @@ class Agente:
         costo = (
             entrada * precio["entrada"]
             + escritura_cache * precio["entrada"] * FACTOR_CACHE_ESCRITURA
-            + lectura_cache * precio["entrada"] * FACTOR_CACHE_LECTURA
+            + lectura_cache * precio["entrada"] * precio["cache_lectura"]
             + salida * precio["salida"]
         ) / 1_000_000
 

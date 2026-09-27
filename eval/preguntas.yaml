@@ -126,7 +126,11 @@
     anterior (QoQ). QTR = abr-may-jun 2026 vs abr-may-jun 2025.
   debe_contener: ["0,8", "0.8"]
   modo_contener: cualquiera
-  no_debe_contener: ["1,4", "1.4"]
+  # Con el % pegado, a proposito: la revision busca subcadenas sueltas, asi que
+  # un "1,4" pelado tambien matchea dentro de "71,4 M" (Santa Cruz en el QTR
+  # 2025) y marcaba FALLA una respuesta correcta. El valor QoQ que hay que
+  # detectar siempre se escribe como porcentaje.
+  no_debe_contener: ["1,4%", "1.4%"]
   verificacion: |
     SELECT
       ROUND(SUM(CASE WHEN FECHA > DATE '2026-03-01' THEN DOLARES END),0) AS QTR_ACTUAL,
