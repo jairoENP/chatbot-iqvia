@@ -20,7 +20,7 @@ a la nube. Por eso el proyecto está partido:
 | `export/` | Trabajo | No | Lee SQL Server → escribe `data/iqvia.duckdb` |
 | `chatbot/` | Personal | Sí | Lee el `.duckdb` → responde con Claude |
 
-El archivo `.duckdb` pesa ~43 MB y viaja por OneDrive o USB. DuckDB se instala
+El archivo `.duckdb` pesa ~44 MB y viaja por OneDrive o USB. DuckDB se instala
 con `pip`, sin instaladores `.exe`. Nada se sube a ningún servicio externo salvo
 las preguntas y los resultados de las consultas, que van a la API de Claude.
 
@@ -38,6 +38,11 @@ Trae las 3 tablas del modelo estrella, arma el calendario y la vista plana, y
 verifica la integridad. Tarda ~2 minutos. Al final imprime un control de
 dólares y unidades por año: **contrastarlo contra Power BI** antes de confiar
 en el archivo.
+
+Reconstruye la base entera (IQVIA reenvía los 60 meses cada mes), pero escribe
+primero a `data/iqvia.duckdb.nuevo` y reemplaza el archivo bueno recién al
+final, con la integridad ya verificada. **Si la corrida falla, el `.duckdb`
+anterior queda intacto**: podés seguir usándolo mientras resolvés el problema.
 
 Opciones útiles:
 
@@ -80,7 +85,7 @@ mensual**: es lo que separa una herramienta confiable de una demo.
 producto × región × mes: el 64% de las filas no tiene ventas. Excluirlas
 achicaría el archivo, pero un producto que no vendió desaparecería de los
 listados del sub-mercado, y su serie mensual quedaría con huecos en vez de
-ceros. DuckDB comprime esos ceros casi por completo (43 MB con las 2,86M de
+ceros. DuckDB comprime esos ceros casi por completo (44 MB con las 2,87M de
 filas), así que no cuesta nada tenerlos.
 
 **`MARCA` viene limpia.** En origen es un campo de ancho fijo de 22 caracteres:

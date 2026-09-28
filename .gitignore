@@ -4,6 +4,8 @@
 # data/iqvia.duckdb SI se versiona a proposito: Streamlit Cloud lo sirve
 # directo desde el repo. Solo se ignora el archivo temporal .wal.
 data/*.duckdb.wal
+# Archivo a medio escribir de una corrida fallida del exportador.
+data/*.duckdb.nuevo
 
 # Python
 __pycache__/

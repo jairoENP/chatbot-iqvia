@@ -340,11 +340,18 @@ def main() -> None:
 
     inicio = time.time()
     args.salida.parent.mkdir(parents=True, exist_ok=True)
-    if args.salida.exists():
-        args.salida.unlink()
+
+    # Se escribe a un archivo aparte y el bueno se reemplaza recien al final,
+    # con la integridad ya verificada. Antes se borraba el .duckdb ANTES de
+    # intentar conectar a SQL Server: si la conexion fallaba (VPN caida,
+    # credenciales vencidas, driver ODBC ausente) o si un chequeo de integridad
+    # no pasaba, te quedabas sin el archivo anterior, que funcionaba.
+    temporal = args.salida.with_name(args.salida.name + ".nuevo")
+    if temporal.exists():
+        temporal.unlink()
 
     cn = conectar_sqlserver()
-    con = duckdb.connect(str(args.salida))
+    con = duckdb.connect(str(temporal))
     try:
         corte = fecha_corte(cn)
         desde = fecha_desde(corte, args.meses)
@@ -374,6 +381,12 @@ def main() -> None:
     finally:
         cn.close()
         con.close()
+
+    # Solo se llega aca si verificar() paso. El reemplazo es atomico: o queda
+    # el archivo nuevo completo, o queda el anterior intacto. Nunca a medias.
+    # Si la corrida fallo, el .nuevo queda en disco para poder inspeccionarlo y
+    # la proxima corrida lo descarta.
+    temporal.replace(args.salida)
 
     con = duckdb.connect(str(args.salida), read_only=True)
     resumen(con, args.salida)

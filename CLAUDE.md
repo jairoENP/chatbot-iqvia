@@ -64,7 +64,7 @@ máquinas distintas**, porque en las computadoras de Abbott no se puede usar IA.
 │  ├─ IQVIA_DIM_PRESENTACIONES  ──► export_to_duckdb.py   │
 │  └─ IQVIA_DIM_REGIONES                     │            │
 └────────────────────────────────────────────┼────────────┘
-                                   data/iqvia.duckdb (43 MB)
+                                   data/iqvia.duckdb (44 MB)
                                              │ git push
                                    GitHub jairoENP/chatbot-iqvia
                                              │ deploy automático
@@ -101,7 +101,7 @@ conversación acumulada (por eso el caché, ver *Decisiones técnicas*).
 | [chatbot/contexto.py](chatbot/contexto.py) | **El activo real del proyecto**: esquema + diccionario de negocio + reglas. ~5.400 tokens. |
 | [eval/preguntas.yaml](eval/preguntas.yaml) | 22 casos con la respuesta verdadera en SQL. |
 | [eval/run_eval.py](eval/run_eval.py) | Corredor de la validación. |
-| `data/iqvia.duckdb` | 43 MB, **versionado a propósito** (Streamlit Cloud lo sirve del repo). |
+| `data/iqvia.duckdb` | 44 MB, **versionado a propósito** (Streamlit Cloud lo sirve del repo). |
 
 **Leer antes de tocar nada:** `chatbot/contexto.py` (toda regla de negocio vive
 ahí, no en el código) y este archivo.
@@ -117,8 +117,12 @@ ahí, no en el código) y este archivo.
 `dim_calendario` (generada), `meta` (una fila), y **`vw_ventas`** — la vista
 plana que consulta el agente en el 95% de los casos.
 
-**Volumen actual** (corte 2026-06-01): 2.856.480 filas · 60 meses
-(2021-07 → 2026-06) · 11.902 presentaciones · 4 regiones · 52 sub-mercados.
+**Volumen actual** (corte 2026-07-01, recargado el 2026-09-28): 2.868.240 filas
+· 60 meses (2021-08 → 2026-07) · 11.951 presentaciones · 4 regiones · 52
+sub-mercados · 44,3 MB.
+
+La ventana de 60 meses **rueda**: al entrar 2026-07 salió 2021-07. IQVIA reenvía
+siempre los últimos 60 meses, así que el histórico no crece, se desplaza.
 
 ## Reglas de negocio que NO son evidentes en el código
 
@@ -153,12 +157,29 @@ Todas están escritas en `contexto.py`; acá el porqué:
 10. **Solo datos reales.** `ES_PROYECCION = 1` queda fuera. IQVIA entrega con
     atraso: el último mes disponible no es el mes actual.
 
-## Cambios de esquema
+## Cambios de esquema y ciclo de recarga
 
-El exportador hace **truncate + repoblado completo** (`CREATE OR REPLACE`), no
-incremental. Cada corrida refleja lo que haya en SQL Server en ese momento. Si
-IQVIA cambia el ancho de `MARCA` o agrega columnas, `verificar()` corta la
-ejecución antes de generar un archivo inválido.
+El exportador **reconstruye el archivo entero**, no es incremental. No hace
+`TRUNCATE` ni recrea tabla por tabla: la base nace de cero en cada corrida, así
+que nada del mes anterior sobrevive. Eso encaja con que IQVIA reenvía los 60
+meses completos cada mes, y evita que el archivo se infle (no necesita `VACUUM`).
+
+Los `CREATE OR REPLACE TABLE` que hay en el código son redundantes en la
+práctica —siempre corren sobre una base recién creada— pero dejan el script
+correcto si alguien cambia el mecanismo.
+
+**La escritura es atómica.** Se escribe a `data/iqvia.duckdb.nuevo` y el archivo
+bueno se reemplaza (`Path.replace()`) recién al final, con `verificar()` ya
+pasado. Una corrida fallida deja el `.duckdb` anterior **intacto y usable**. El
+`.nuevo` queda en disco para inspeccionarlo y la corrida siguiente lo descarta
+(está en `.gitignore`).
+
+Si IQVIA cambia el ancho de `MARCA` o el valor de `CORPORACION`, `verificar()`
+corta con `sys.exit()` y el archivo bueno ni se toca.
+
+**Al recargar datos nuevos hay que recalcular el set de evaluación**
+(`python eval/run_eval.py --recalcular`): los valores esperados están atados a
+la fecha de corte.
 
 ---
 
@@ -173,7 +194,7 @@ ejecución antes de generar un archivo inválido.
 
 ### 2. DuckDB en vez de SQL Server remoto o Postgres
 - **Motivo:** base embebida, se instala con `pip` (sin `.exe`), un archivo
-  portable de 43 MB, consultas de 17-31 ms sobre 2,86M filas.
+  portable de 44 MB, consultas de 17-31 ms sobre 2,87M filas.
 - **Consecuencia:** el archivo viaja en el repo. Solo lectura, sin concurrencia
   de escritura.
 - **MotherDuck fue evaluado y descartado:** metería datos licenciados de IQVIA
@@ -229,18 +250,29 @@ ejecución antes de generar un archivo inválido.
   usuarios. Las conversaciones se cruzaban **en silencio**: cada uno veía su chat
   pero Claude recibía las dos mezcladas.
 - **Implementación:** la conexión DuckDB sí se comparte (solo lectura, evita
-  abrir 43 MB por usuario); cada sesión toma su `.cursor()` (una conexión no es
+  abrir 44 MB por usuario); cada sesión toma su `.cursor()` (una conexión no es
   thread-safe y Streamlit corre cada sesión en un hilo); el `Agente` vive en
   `st.session_state`.
 - **NO volver a poner `@st.cache_resource` sobre el Agente.**
 
-### 9. Plotly en vez de matplotlib
+### 9. El exportador escribe de forma atómica
+- **Motivo:** antes se borraba `data/iqvia.duckdb` **antes** de intentar conectar
+  a SQL Server. Si la conexión fallaba (VPN caída, credenciales vencidas, driver
+  ODBC ausente) o si `verificar()` no pasaba, el archivo anterior —que
+  funcionaba— ya estaba destruido. Lo único que lo salvaba era que también está
+  versionado en git, una red de seguridad accidental.
+- **Implementación:** se escribe a `<salida>.nuevo` y se hace
+  `temporal.replace(args.salida)` recién después de `verificar()`.
+- **Verificado:** una corrida con `SQLSERVER_HOST` inválido deja el archivo
+  anterior sin tocar.
+
+### 10. Plotly en vez de matplotlib
 - **Motivo:** gráficos interactivos (hover con el valor exacto), mejor
   integración con Streamlit.
 - **Consecuencia:** `st.plotly_chart` deriva el id del contenido, así que dos
   figuras iguales colisionan → **cada gráfico necesita `key=` explícita**.
 
-### 10. Seguridad del sandbox
+### 11. Seguridad del sandbox
 - Conexión DuckDB en `read_only=True` (garantía real, no un filtro de texto).
 - `ejecutar_sql` solo acepta `SELECT`/`WITH`; bloquea INSERT/UPDATE/DELETE/DROP.
 - `ejecutar_python` usa `exec()` con builtins restringidos: sin `os`,
@@ -294,6 +326,15 @@ primera vez (los críticos + el de formato), con 7/7 en Opus 5.5 / `medium`. Los
 automática.
 
 **Pendiente / riesgos:**
+- ⚠️ **El set de evaluación quedó obsoleto tras la recarga al corte 2026-07.**
+  `preguntas.yaml` tiene **35 fechas escritas a mano** atadas al corte 2026-06.
+  No es solo que cambien los valores esperados (`precio_promedio` pasó de 29,85 a
+  29,41): hay SQL de verificación que quedó **directamente mal**. El de
+  `crecimiento_qtr_yoy` filtra `FECHA > DATE '2026-03-01'`, que ahora abarca
+  cuatro meses (abr-jul) contra tres de 2025, y devuelve un 31,4% sin sentido.
+  **El arreglo correcto es derivar las fechas de `meta.FECHA_CORTE`** en vez de
+  literales, para que el set se ajuste solo en cada recarga. Hasta entonces, un
+  `run_eval.py` completo da resultados no confiables.
 - ⚠️ **El repo es público y contiene `data/iqvia.duckdb`** con 2,86M filas de
   datos licenciados de IQVIA, descargables por cualquiera. Se hizo público
   porque Streamlit no veía el repo privado; el permiso correcto está en
@@ -306,7 +347,7 @@ automática.
 - `SQLAlchemy` está en `requirements.txt` pero **no se importa en ningún
   archivo** — el exportador usa `pyodbc` directo. Dependencia muerta.
 - Dependencias sin fijar (`>=`): riesgo de romperse solo.
-- El `.duckdb` se reemplaza entero cada mes → el repo crece ~43 MB por
+- El `.duckdb` se reemplaza entero cada mes → el repo crece ~44 MB por
   actualización (~500 MB/año). Eventualmente, Git LFS.
 
 **Contradicciones documentación ↔ implementación:**
@@ -417,8 +458,8 @@ automático no garantiza que la respuesta sea buena.
 
 **Limitaciones:** varios casos nuevos no tienen verificación automática confiable
 (formato de tabla, si preguntó ante ambigüedad). Los valores esperados
-corresponden al corte **2026-06** — al llegar datos nuevos hay que recalcularlos
-con `--recalcular`.
+estaban calculados al corte **2026-06** y **quedaron obsoletos** con la recarga
+al corte 2026-07 del 2026-09-28. Ver el riesgo en *Estado actual*.
 
 **Después de cada cambio:** `compileall`, validar el YAML si se tocó, y
 `--recalcular` si se tocaron reglas de negocio.
@@ -499,3 +540,5 @@ exposición del repo público y rotar las credenciales.
 | 2026-09-27 | Opus 5 `high` → Opus 5.5 `medium` | Medido: 7/7 igual, 52% menos costo, 35% menos tiempo | `agent.py` | Vigente |
 | 2026-09-27 | Factor de caché por modelo (0,05x en Opus 5.5) | Una constante global sobreestimaba el gasto | `agent.py` | Vigente |
 | 2026-09-27 | Valores de `no_debe_contener` con `%` pegado | Un "1,4" pelado matcheaba dentro de "71,4 M" | `preguntas.yaml` | Vigente |
+| 2026-09-28 | Costo por pregunta al pie de cada respuesta | El acumulado escondía qué turno costaba más | `app.py` | Vigente |
+| 2026-09-28 | Exportador con escritura atómica | Una corrida fallida destruía el `.duckdb` anterior | `export_to_duckdb.py`, `.gitignore` | Vigente |
