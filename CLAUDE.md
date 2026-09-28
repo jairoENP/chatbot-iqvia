@@ -142,6 +142,10 @@ Todas están escritas en `contexto.py`; acá el porqué:
 4. **"Mercado" = `SUB_MERCADO`** cuando se refiere a uno concreto. Excepción:
    "el mercado boliviano/total" es el universo completo. `CLASE1..4` solo si lo
    nombran explícitamente. `SUB_MERCADO` es NULL para ~84% de las presentaciones.
+   **"Clase terapéutica" sin aclarar el nivel = `CLASE4`** (decisión del equipo,
+   2026-09-28): es el nivel más fino y el que usan para trabajar. Los cuatro
+   niveles dan respuestas distintas a la misma pregunta, así que el default tiene
+   que estar fijado. Se puede mostrar otro nivel *además*, nunca en lugar de él.
 5. **"El mercado" SIEMPRE incluye a Abbott.** `NOT ES_ABBOTT` es competencia, no
    mercado. En tablas Abbott-vs-mercado no se muestra fila "Resto" (confunde).
 6. **Crecimiento = YoY por defecto**, nunca contra el período inmediato anterior.
@@ -306,6 +310,10 @@ la fecha de corte.
 | Formato de tabla no se aplicaba en preguntas abiertas | Regla atada al **output**, no a cómo se pregunta |
 | Leyendas de subplots mezcladas a la derecha | Una leyenda por panel (`legend`/`legend2`) |
 | **Conversaciones cruzadas entre usuarios** | Agente por sesión (ver decisión 8) |
+| "Clase terapéutica" daba 4 respuestas según el nivel ATC | Default fijado en `CLASE4` |
+| El set de evaluación se rompía en cada recarga de datos | Fechas derivadas de `meta.FECHA_CORTE` |
+| Un `FALLA` falso: el bot decía "no puedo darte" y la lista pedía "no puedo responder" | `SENALES_NEGATIVAS` ampliada |
+| Un corte de la API (crédito agotado) daba un resumen idéntico a una regresión | Marca `APIERR` y aviso de que la corrida no sirve |
 
 **Descartado:** RAG (los datos son estructurados, SQL es la herramienta
 correcta); memory tool autónomo (las reglas deben pasar por revisión humana);
@@ -333,14 +341,6 @@ Las 3 fallas de la primera pasada no eran del bot:
 - `clase_terapeutica` — ver la pregunta de negocio abierta más abajo.
 
 **Pendiente / riesgos:**
-- ❓ **Pregunta de negocio abierta: ¿qué nivel es "la clase terapéutica"?**
-  La jerarquía tiene 4 niveles y cada uno da otra respuesta al MAT 2026-07:
-  `CLASE1` APARATO DIGEST.Y METABOL (USD 117,7 M), `CLASE2` ANTIINFLAMAT Y
-  ANTIRREUMA (36,1 M), `CLASE3` ANTIRREUMAT NO ESTEROID (33,7 M), `CLASE4`
-  LECHES PARA NINOS (26,3 M). El bot contesta con `CLASE1` y lo explicita; el
-  caso esperaba `CLASE4`. **La respuesta del bot es defendible**, así que el caso
-  quedó en revisión manual. Cuando el equipo defina el nivel por defecto, va
-  como regla a `contexto.py` y el caso recupera su valor esperado fijo.
 - ⚠️ **El repo es público y contiene `data/iqvia.duckdb`** con 2,86M filas de
   datos licenciados de IQVIA, descargables por cualquiera. Se hizo público
   porque Streamlit no veía el repo privado; el permiso correcto está en
@@ -461,6 +461,7 @@ automático no garantiza que la respuesta sea buena.
 - `evolution_index` / `evolution_index_contexto_cambia` — 98,2 vs 93,2
 - `fuera_de_rango` / `molecula_inexistente` — debe decir que no tiene el dato
 - `mercado_es_submercado` — "mercado" = SUB_MERCADO
+- `clase_terapeutica` — default `CLASE4` (LECHES PARA NINOS), no `CLASE1`
 
 Al corte 2026-06 el par de Evolution Index mostraba la conclusión
 **invirtiéndose** (105,6 ganaba share contra el sub-mercado, 97,2 la perdía
@@ -502,19 +503,25 @@ al corte 2026-07 del 2026-09-28. Ver el riesgo en *Estado actual*.
 
 # Próximo paso recomendado
 
-**Acción:** definir con el equipo qué nivel de la jerarquía `CLASE1..4`
-significa "clase terapéutica", y escribirlo como regla.
+**Acción:** sincronizar la documentación con el deploy real y sacar la
+dependencia muerta.
 
-**Por qué es el próximo paso:** es el único hallazgo del set de evaluación que
-no se pudo cerrar por decisión técnica. Los cuatro niveles dan respuestas
-distintas y todas son defendibles; hoy el bot elige `CLASE1` y lo explicita,
-que es razonable pero no es una regla acordada.
+**Por qué es el próximo paso:** son las últimas incoherencias conocidas entre
+lo que dice el repo y lo que hace. Ninguna rompe nada hoy, pero desorientan a
+quien llegue nuevo (incluido Claude en una conversación futura).
 
-**Archivos involucrados:** `chatbot/contexto.py` (la regla) y
-`eval/preguntas.yaml` (el caso `clase_terapeutica` recupera su valor esperado).
+**Qué hay que tocar:**
+- `README.md` — todavía describe mover el `.duckdb` por OneDrive o USB a una
+  "máquina personal". El deploy real es GitHub → Streamlit Cloud, y el README
+  no lo menciona.
+- `chatbot/app.py:76-79` — el mensaje de error dice "copialo a `data/`",
+  instrucción válida solo para el escenario local.
+- `requirements.txt` — `SQLAlchemy` no se importa en ningún archivo; el
+  exportador usa `pyodbc` directo.
 
-**Criterios de terminado:** el caso vuelve a tener `debe_contener` con un valor
-fijo y pasa la revisión automática.
+**Criterios de terminado:** el README describe el deploy real, el mensaje de
+error no manda copiar archivos a mano, y `pip install -r requirements.txt` no
+baja nada que no se use.
 
 **Decisiones del usuario que siguen pendientes** (no técnicas): la exposición
 del repo público y la rotación de credenciales.
@@ -555,3 +562,5 @@ del repo público y la rotación de credenciales.
 | 2026-09-28 | Marcadores `{ultimo_mes}` / `{mes_futuro}` en las preguntas | Dos casos tenían el mes escrito a mano | `run_eval.py` | Vigente |
 | 2026-09-28 | `SENALES_NEGATIVAS` ampliada | Marcaba FALLA un "no puedo darte" correcto | `run_eval.py` | Vigente |
 | 2026-09-28 | Primera corrida completa: 22/22 | Validación end-to-end del agente | — | Vigente |
+| 2026-09-28 | "Clase terapéutica" por defecto = `CLASE4` | Decisión del equipo: es el nivel que usan para trabajar | `contexto.py`, `preguntas.yaml` | Vigente |
+| 2026-09-28 | El set distingue error de API de fallo de calidad | Un crédito agotado se leía como regresión del agente | `run_eval.py` | Vigente |

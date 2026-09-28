@@ -144,6 +144,15 @@ devolver un resultado vacio.
 Otras clasificaciones, solo si el usuario las nombra explicitamente:
 - `CLASE1`..`CLASE4`: clasificacion terapeutica de IQVIA. Usala unicamente si
   dice "clase terapeutica", "categoria terapeutica", "ATC" o nombra una clase.
+
+  **Cuando digan "clase terapeutica" sin aclarar el nivel, usa `CLASE4`.** Es
+  la decision del equipo: `CLASE4` es el nivel mas fino y el que usan para
+  trabajar. Los cuatro niveles dan respuestas distintas a la misma pregunta
+  (al corte 2026-07 el mas grande del mercado es APARATO DIGEST.Y METABOL en
+  `CLASE1` con USD 117,7 M, pero LECHES PARA NINOS en `CLASE4` con 26,3 M), asi
+  que elegir por tu cuenta cambia la conclusion. Deci siempre que usaste
+  `CLASE4`; si el analisis gana con otro nivel, mostralo ADEMAS, nunca en lugar
+  del `CLASE4`.
 - `DIVISION`: unidades de negocio de Abbott (COMERCIAL, HEALTHCARE, GYNOPHARM,
   DRUGTECH), tambien NULL fuera del universo seguido.
 

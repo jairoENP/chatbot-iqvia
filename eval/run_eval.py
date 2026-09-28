@@ -158,8 +158,12 @@ def main() -> None:
             elif evento.tipo == "error":
                 respuesta += f"\n[ERROR] {evento.texto}"
 
+        # Un fallo de la API (credito agotado, rate limit, caida) hace que TODOS
+        # los casos con valor esperado den FALLA, y el resumen queda identico al
+        # de una regresion de calidad. Se marca aparte para no confundirlos.
+        fallo_api = "[ERROR] Error de la API" in respuesta
         ok, motivo = revisar(caso, respuesta)
-        resultados.append((caso["id"], ok, motivo))
+        resultados.append((caso["id"], ok, motivo, fallo_api))
 
         print(f"RESPUESTA:\n{respuesta}\n")
         print(f"HERRAMIENTAS: {' -> '.join(herramientas) or '(ninguna)'}")
@@ -170,9 +174,21 @@ def main() -> None:
     con.close()
 
     print(f"\n\n{'=' * 74}\nRESUMEN\n{'=' * 74}")
-    for nombre, ok, motivo in resultados:
-        print(f"  {'OK   ' if ok else 'FALLA'}  {nombre:<26} {motivo}")
-    aciertos = sum(1 for _, ok, _ in resultados if ok)
+    for nombre, ok, motivo, fallo_api in resultados:
+        etiqueta = "APIERR" if fallo_api else ("OK   " if ok else "FALLA")
+        print(f"  {etiqueta}  {nombre:<26} {motivo}")
+
+    con_error = sum(1 for *_, fallo_api in resultados if fallo_api)
+    if con_error:
+        print(
+            f"\n  !! {con_error} de {len(resultados)} casos no llegaron a correr: "
+            "la API devolvio error.\n"
+            "     Revisa el detalle arriba (credito agotado, rate limit, red). "
+            "ESTA CORRIDA NO SIRVE\n"
+            "     para juzgar la calidad del agente: resolvelo y volve a correr."
+        )
+
+    aciertos = sum(1 for _, ok, _, _ in resultados if ok)
     print(f"\n  {aciertos}/{len(resultados)} casos pasaron la revision automatica.")
     print("  Revisar igual las respuestas contra la verdad de SQL: el chequeo")
     print("  automatico detecta cifras erroneas, no razonamientos flojos.")

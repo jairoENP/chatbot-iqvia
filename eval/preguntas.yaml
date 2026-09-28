@@ -342,18 +342,17 @@
   pregunta: Cual es la clase terapeutica mas grande del mercado?
   prueba: >-
     Debe usar la jerarquia CLASE de IQVIA y no SUB_MERCADO (clasificacion
-    interna de Abbott), y aclarar con que criterio la eligio.
-  debe_contener: []
-  # PENDIENTE DE DEFINICION DE NEGOCIO. La pregunta no dice QUE nivel de la
-  # jerarquia es "la clase terapeutica", y los cuatro dan respuestas distintas.
-  # El bot contesto con CLASE1 ("A - Aparato digestivo y metabolismo", 21,1% del
-  # mercado), lo explicito y de yapa mostro CLASE2; el caso esperaba CLASE4
-  # ("LECHES PARA NINOS") y lo marcaba FALLA. La respuesta del bot es defendible.
-  # Cuando el equipo defina cual nivel es el default, va como regla a
-  # contexto.py y este caso vuelve a tener un valor esperado fijo.
+    interna de Abbott). Sin aclaracion de nivel, la regla del equipo es `CLASE4`
+    (el nivel mas fino), donde el lider es LECHES PARA NINOS. Si toma `CLASE1`
+    responde APARATO DIGEST.Y METABOL, que es otra respuesta: cambiar de nivel
+    cambia la conclusion, por eso el default esta fijado.
+  debe_contener: [LECHES]
+  # Los otros niveles son las respuestas incorrectas para esta pregunta: si
+  # aparecen SOLAS es que tomo el nivel equivocado. Puede mencionarlos como
+  # complemento, pero el titular tiene que ser el de CLASE4.
   verificacion: |
-    -- El lider de cada nivel de la jerarquia, para ver por que la pregunta es
-    -- ambigua tal como esta formulada.
+    -- El lider de cada nivel. La respuesta correcta es la fila CLASE4; las
+    -- otras tres son lo que contestaria el bot si tomara el nivel equivocado.
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta),
     v AS (SELECT * FROM vw_ventas, p WHERE FECHA > p.corte - INTERVAL 12 MONTH),
     t AS (
