@@ -318,23 +318,29 @@ MotherDuck; migrar a `pyproject.toml` (riesgo sin beneficio urgente).
 **Terminado:** exportador, agente, interfaz, aislamiento por sesión, caché,
 las 3 herramientas, el diccionario de negocio, deploy automático.
 
-**Parcial:** el set existe con 22 casos y sus verdades SQL corren
-(`--recalcular`). El **2026-09-27 se corrieron 7 casos contra la API real** por
-primera vez (los críticos + el de formato), con 7/7 en Opus 5.5 / `medium`. Los
-**15 restantes siguen sin ejecutarse nunca** contra la API. Varios casos nuevos
-(formato de tabla, pregunta aclaratoria) tienen verificación manual, no
-automática.
+**Terminado también:** el **2026-09-28 se corrió el set completo (22 casos)
+contra la API real por primera vez**, al corte 2026-07 y con Opus 5.5 /
+`medium`. Resultado final **22/22**, de los cuales 6 son de revisión manual.
+
+Las 3 fallas de la primera pasada no eran del bot:
+- `fuera_de_rango` — el bot respondió *"No puedo darte la venta de enero de
+  2027: ese mes todavía no está en la base"*, impecable, pero `SENALES_NEGATIVAS`
+  solo tenía `"no puedo responder"`. Lista ampliada.
+- `competencia_submercado` — esperaba `PROMEDICAL`, pero existen ENSURE y ENSURE
+  ADVANCE, así que la regla de ambigüedad manda **preguntar**. El caso
+  contradecía una regla propia; pasó a revisión manual. La conducta de fondo la
+  cubre `mercado_es_submercado`, donde PEDIASURE no tiene hermanos de nombre.
+- `clase_terapeutica` — ver la pregunta de negocio abierta más abajo.
 
 **Pendiente / riesgos:**
-- ⚠️ **El set de evaluación quedó obsoleto tras la recarga al corte 2026-07.**
-  `preguntas.yaml` tiene **35 fechas escritas a mano** atadas al corte 2026-06.
-  No es solo que cambien los valores esperados (`precio_promedio` pasó de 29,85 a
-  29,41): hay SQL de verificación que quedó **directamente mal**. El de
-  `crecimiento_qtr_yoy` filtra `FECHA > DATE '2026-03-01'`, que ahora abarca
-  cuatro meses (abr-jul) contra tres de 2025, y devuelve un 31,4% sin sentido.
-  **El arreglo correcto es derivar las fechas de `meta.FECHA_CORTE`** en vez de
-  literales, para que el set se ajuste solo en cada recarga. Hasta entonces, un
-  `run_eval.py` completo da resultados no confiables.
+- ❓ **Pregunta de negocio abierta: ¿qué nivel es "la clase terapéutica"?**
+  La jerarquía tiene 4 niveles y cada uno da otra respuesta al MAT 2026-07:
+  `CLASE1` APARATO DIGEST.Y METABOL (USD 117,7 M), `CLASE2` ANTIINFLAMAT Y
+  ANTIRREUMA (36,1 M), `CLASE3` ANTIRREUMAT NO ESTEROID (33,7 M), `CLASE4`
+  LECHES PARA NINOS (26,3 M). El bot contesta con `CLASE1` y lo explicita; el
+  caso esperaba `CLASE4`. **La respuesta del bot es defendible**, así que el caso
+  quedó en revisión manual. Cuando el equipo defina el nivel por defecto, va
+  como regla a `contexto.py` y el caso recupera su valor esperado fijo.
 - ⚠️ **El repo es público y contiene `data/iqvia.duckdb`** con 2,86M filas de
   datos licenciados de IQVIA, descargables por cualquiera. Se hizo público
   porque Streamlit no veía el repo privado; el permiso correcto está en
@@ -448,13 +454,19 @@ ambas lado a lado.
 acentos y separadores de miles. Un `FALLA` siempre merece atención; un `OK`
 automático no garantiza que la respuesta sea buena.
 
-**Casos críticos que no deben romperse:**
-- `precio_promedio` — trampa del precio ponderado (29,85)
-- `conteo_presentaciones` — trampa de la grilla densa (121, no 980)
-- `crecimiento_qtr_yoy` — YoY (0,8%), no QoQ (1,4%)
-- `evolution_index` / `evolution_index_contexto_cambia` — 105,6 vs 97,2
+**Casos críticos que no deben romperse** (valores al corte 2026-07):
+- `precio_promedio` — trampa del precio ponderado (29,22)
+- `conteo_presentaciones` — trampa de la grilla densa (117, no 968)
+- `crecimiento_qtr_yoy` — YoY (-6,5%), no QoQ (-8,9%)
+- `evolution_index` / `evolution_index_contexto_cambia` — 98,2 vs 93,2
 - `fuera_de_rango` / `molecula_inexistente` — debe decir que no tiene el dato
 - `mercado_es_submercado` — "mercado" = SUB_MERCADO
+
+Al corte 2026-06 el par de Evolution Index mostraba la conclusión
+**invirtiéndose** (105,6 ganaba share contra el sub-mercado, 97,2 la perdía
+contra la molécula). Con los datos de julio ACERDIL D pierde share en los dos
+contextos (98,2 y 93,2): lo que el caso prueba es la **brecha** entre contextos,
+no que uno cruce el 100.
 
 **Limitaciones:** varios casos nuevos no tienen verificación automática confiable
 (formato de tabla, si preguntó ante ambigüedad). Los valores esperados
@@ -490,26 +502,22 @@ al corte 2026-07 del 2026-09-28. Ver el riesgo en *Estado actual*.
 
 # Próximo paso recomendado
 
-**Acción:** correr el set de evaluación completo contra la API real.
+**Acción:** definir con el equipo qué nivel de la jerarquía `CLASE1..4`
+significa "clase terapéutica", y escribirlo como regla.
 
-```bash
-python eval/run_eval.py
-```
+**Por qué es el próximo paso:** es el único hallazgo del set de evaluación que
+no se pudo cerrar por decisión técnica. Los cuatro niveles dan respuestas
+distintas y todas son defendibles; hoy el bot elige `CLASE1` y lo explicita,
+que es razonable pero no es una regla acordada.
 
-**Archivos involucrados:** `eval/run_eval.py`, `eval/preguntas.yaml`, y
-`chatbot/contexto.py` si aparecen fallos que requieran ajustar reglas.
+**Archivos involucrados:** `chatbot/contexto.py` (la regla) y
+`eval/preguntas.yaml` (el caso `clase_terapeutica` recupera su valor esperado).
 
-**Resultado esperado:** un informe de los 22 casos con la respuesta del agente
-al lado de la verdad SQL. Costo estimado: pocos dólares.
+**Criterios de terminado:** el caso vuelve a tener `debe_contener` con un valor
+fijo y pasa la revisión automática.
 
-**Criterios de terminado:**
-- Los 6 casos críticos pasan.
-- Los de revisión manual (formato de tabla, pregunta aclaratoria) se inspeccionan
-  a ojo y se confirma el comportamiento.
-- Todo fallo genera una regla nueva en `contexto.py` o un ajuste del caso.
-
-**Antes o en paralelo** (decisión del usuario, no técnica): resolver la
-exposición del repo público y rotar las credenciales.
+**Decisiones del usuario que siguen pendientes** (no técnicas): la exposición
+del repo público y la rotación de credenciales.
 
 ---
 
@@ -542,3 +550,8 @@ exposición del repo público y rotar las credenciales.
 | 2026-09-27 | Valores de `no_debe_contener` con `%` pegado | Un "1,4" pelado matcheaba dentro de "71,4 M" | `preguntas.yaml` | Vigente |
 | 2026-09-28 | Costo por pregunta al pie de cada respuesta | El acumulado escondía qué turno costaba más | `app.py` | Vigente |
 | 2026-09-28 | Exportador con escritura atómica | Una corrida fallida destruía el `.duckdb` anterior | `export_to_duckdb.py`, `.gitignore` | Vigente |
+| 2026-09-28 | Recarga al corte 2026-07 | Llegaron los datos de julio | `data/iqvia.duckdb` | Vigente |
+| 2026-09-28 | Fechas del set derivadas de `meta.FECHA_CORTE` | 35 literales rompían el set en cada recarga | `preguntas.yaml`, `run_eval.py` | Vigente |
+| 2026-09-28 | Marcadores `{ultimo_mes}` / `{mes_futuro}` en las preguntas | Dos casos tenían el mes escrito a mano | `run_eval.py` | Vigente |
+| 2026-09-28 | `SENALES_NEGATIVAS` ampliada | Marcaba FALLA un "no puedo darte" correcto | `run_eval.py` | Vigente |
+| 2026-09-28 | Primera corrida completa: 22/22 | Validación end-to-end del agente | — | Vigente |

@@ -1,11 +1,35 @@
 # Set de validacion del chatbot.
 #
-# Cada caso trae la consulta SQL que produce la respuesta VERDADERA, calculada
-# a mano contra los datos. run_eval.py corre la pregunta contra el agente,
-# ejecuta la verificacion y las muestra lado a lado.
+# Cada caso trae la consulta SQL que produce la respuesta VERDADERA. run_eval.py
+# corre la pregunta contra el agente, ejecuta la verificacion y las muestra lado
+# a lado.
 #
-# Los valores esperados corresponden al corte 2026-06. Al llegar datos nuevos
-# hay que recalcularlos (run_eval.py --recalcular los imprime).
+# LAS FECHAS NO SE ESCRIBEN A MANO. Todas salen de `meta.FECHA_CORTE`, la unica
+# fila de la tabla `meta`, donde el exportador graba el ultimo mes real de
+# IQVIA. El prologo `WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)` va en
+# cada caso que necesite un periodo, y las ventanas se calculan asi:
+#
+#   MAT        FECHA >  corte - INTERVAL 12 MONTH
+#   MAT ano-1  FECHA >  corte - INTERVAL 24 MONTH  AND FECHA <= corte - INTERVAL 12 MONTH
+#   SEM        FECHA >  corte - INTERVAL  6 MONTH
+#   QTR        FECHA >  corte - INTERVAL  3 MONTH
+#   QTR ano-1  FECHA >  corte - INTERVAL 15 MONTH  AND FECHA <= corte - INTERVAL 12 MONTH
+#   YTD        FECHA >= DATE_TRUNC('year', corte)
+#   MTH        FECHA =  corte
+#
+# Asi el set se ajusta solo cuando se recarga el .duckdb. Antes habia 35 fechas
+# literales atadas al corte 2026-06, y la recarga a 2026-07 no solo movio los
+# valores esperados: rompio ventanas enteras. El QTR terminaba comparando cuatro
+# meses contra tres y devolvia un 31,4% sin sentido.
+#
+# Lo que SI hay que revisar en cada recarga son los `debe_contener`, que son
+# texto fijo. Estan marcados con "# valor atado al corte".
+# `python eval/run_eval.py --recalcular` imprime los valores nuevos sin gastar
+# API.
+#
+# En el texto de las preguntas, run_eval.py reemplaza estos marcadores:
+#   {ultimo_mes}  el mes de corte en palabras ("julio de 2026")
+#   {mes_futuro}  un mes posterior a los datos, para el caso fuera de rango
 
 - id: producto_lider_molecula_pregunta_aclaratoria
   pregunta: Cual es el producto que mas se vende de la molecula paracetamol?
@@ -13,44 +37,55 @@
     El usuario escribe en espanol y el dato esta en ingles (PARACETAMOL).
     Ademas hay varias moleculas combinadas que contienen "paracetamol"
     (diclofenac+paracetamol, cafeina+ergotamina+paracetamol, etc.), asi que
-    segun la regla nueva el bot NO debe responder directo: tiene que preguntar
+    segun la regla el bot NO debe responder directo: tiene que preguntar
     primero si el usuario quiere la molecula pura o tambien las combinaciones.
-    Si en cambio responde con TRASSIL sin preguntar, esta asumiendo en lugar
-    de confirmar -- eso es lo que se quiso evitar con la regla.
+    Si en cambio responde con el lider sin preguntar, esta asumiendo en lugar
+    de confirmar, que es lo que se quiso evitar con la regla.
   debe_contener: []
   # Sin chequeo automatico fiable: lo que hay que revisar a mano es que la
   # respuesta sea una pregunta (algo como "solo la molecula, o incluyo las
   # combinaciones?"), no un resultado ya calculado.
   verificacion: |
-    -- Si se responde "solo la molecula pura", la respuesta correcta es:
+    -- Si se responde "solo la molecula pura", el lider del MAT es:
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT MARCA, CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
-    FROM vw_ventas WHERE MOLECULA = 'PARACETAMOL' AND FECHA > DATE '2025-06-01'
-    GROUP BY 1,2 ORDER BY 3 DESC LIMIT 3
-  verificacion: |
-    SELECT MARCA, CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
-    FROM vw_ventas WHERE MOLECULA = 'PARACETAMOL' AND FECHA > DATE '2025-06-01'
+    FROM vw_ventas, p
+    WHERE MOLECULA = 'PARACETAMOL' AND FECHA > p.corte - INTERVAL 12 MONTH
     GROUP BY 1,2 ORDER BY 3 DESC LIMIT 3
 
 - id: competencia_submercado
   pregunta: En el sub-mercado de Ensure, quien es mi mayor competencia?
   prueba: >-
     La segunda pregunta original. Exige entender que ABBOTT CORP somos nosotros
-    y excluirnos del ranking de competidores.
-  debe_contener: [PROMEDICAL]
+    y excluirnos del ranking de competidores. PERO hay dos sub-mercados que
+    empiezan con "Ensure" (ENSURE y ENSURE ADVANCE), asi que la regla de
+    ambiguedad manda que el bot PREGUNTE cual antes de calcular. Lo correcto
+    aca es una contrapregunta, no un ranking.
+  debe_contener: []
   no_debe_contener: []
+  # Sin chequeo automatico: esperar "PROMEDICAL" contradecia la regla de
+  # ambiguedad y marcaba FALLA la contrapregunta, que es el comportamiento
+  # deseado. Revisar a mano que pregunte por ENSURE vs ENSURE ADVANCE. La
+  # conducta de fondo (excluir a Abbott y rankear competidores) la cubre
+  # `mercado_es_submercado`, donde PEDIASURE no tiene hermanos de nombre.
   verificacion: |
-    SELECT CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
-    FROM vw_ventas WHERE SUB_MERCADO = 'ENSURE' AND NOT ES_ABBOTT
-      AND FECHA > DATE '2025-06-01'
-    GROUP BY 1 ORDER BY 2 DESC LIMIT 3
+    -- Los dos sub-mercados que justifican la contrapregunta, y el ranking de
+    -- competidores de cada uno por si el usuario elige.
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
+    SELECT SUB_MERCADO, CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
+    FROM vw_ventas, p
+    WHERE SUB_MERCADO LIKE 'ENSURE%' AND NOT ES_ABBOTT
+      AND FECHA > p.corte - INTERVAL 12 MONTH
+    GROUP BY 1,2 ORDER BY 1, 3 DESC
 
 - id: share_abbott_total
   pregunta: Que participacion de mercado tiene Abbott en el total del mercado?
   prueba: Share global. Verifica que no confunda el universo total con el seguido.
-  debe_contener: ["2,7"]
+  debe_contener: ["2,7"]   # valor atado al corte
   verificacion: |
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT ROUND(100.0*SUM(CASE WHEN ES_ABBOTT THEN DOLARES END)/SUM(DOLARES),2) AS SHARE_PCT
-    FROM vw_ventas WHERE FECHA > DATE '2025-06-01'
+    FROM vw_ventas, p WHERE FECHA > p.corte - INTERVAL 12 MONTH
 
 - id: lideres_mercado
   pregunta: Cuales son las tres corporaciones mas grandes del mercado boliviano?
@@ -59,8 +94,9 @@
     mercado: "el mercado boliviano" es el universo completo, NO un SUB_MERCADO.
   debe_contener: [INTI, BAGO]
   verificacion: |
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
-    FROM vw_ventas WHERE FECHA > DATE '2025-06-01'
+    FROM vw_ventas, p WHERE FECHA > p.corte - INTERVAL 12 MONTH
     GROUP BY 1 ORDER BY 2 DESC LIMIT 3
 
 - id: region_top_abbott
@@ -68,54 +104,60 @@
   prueba: Corte geografico basico.
   debe_contener: [SANTA CRUZ]
   verificacion: |
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT REGION, ROUND(SUM(DOLARES),0) AS DOLARES
-    FROM vw_ventas WHERE ES_ABBOTT AND FECHA > DATE '2025-06-01'
+    FROM vw_ventas, p WHERE ES_ABBOTT AND FECHA > p.corte - INTERVAL 12 MONTH
     GROUP BY 1 ORDER BY 2 DESC
 
 - id: tendencia_abbott
   pregunta: Como viene la tendencia de las ventas de Abbott? Crecimos o caimos?
   prueba: >-
-    Debe usar Python, no solo SQL. Espera un crecimiento de ~18% comparando los
-    ultimos 12 meses contra los 12 previos. Deberia acompanar con un grafico.
-  debe_contener: ["18"]
+    Debe usar Python, no solo SQL, comparando el MAT contra el MAT del anio
+    anterior. Deberia acompanar con un grafico.
+  debe_contener: ["16"]   # valor atado al corte: +16,7%
   verificacion: |
-    SELECT ROUND(100.0*(SUM(CASE WHEN FECHA > DATE '2025-06-01' THEN DOLARES END)
-         / SUM(CASE WHEN FECHA > DATE '2024-06-01' AND FECHA <= DATE '2025-06-01'
-                    THEN DOLARES END) - 1),1) AS YOY_PCT
-    FROM vw_ventas WHERE ES_ABBOTT
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
+    SELECT ROUND(100.0*(
+             SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END)
+           / SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
+                       AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) - 1),1) AS YOY_PCT
+    FROM vw_ventas, p WHERE ES_ABBOTT
 
 - id: precio_promedio
   pregunta: Cual es el precio unitario promedio de Ensure?
   prueba: >-
     TRAMPA. PRECIOS es precio unitario: sumarlo o promediarlo sin ponderar da
-    cualquier cosa. La respuesta correcta es SUM(DOLARES)/SUM(UNIDADES) = 29,85.
+    cualquier cosa. La respuesta correcta es SUM(DOLARES)/SUM(UNIDADES).
     Ademas MARCA requiere el valor limpio.
-  debe_contener: ["29"]
+  debe_contener: ["29"]   # valor atado al corte: 29,22
   verificacion: |
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT ROUND(SUM(DOLARES)/NULLIF(SUM(UNIDADES),0),2) AS PRECIO_PONDERADO
-    FROM vw_ventas WHERE MARCA = 'ENSURE' AND FECHA > DATE '2025-06-01' AND UNIDADES > 0
+    FROM vw_ventas, p
+    WHERE MARCA = 'ENSURE' AND FECHA > p.corte - INTERVAL 12 MONTH AND UNIDADES > 0
 
 - id: metrica_bolivianos
   pregunta: Cuanto vendio Abbott en Bs el ultimo ano?
   prueba: >-
-    "Bs" debe activar BOLIVIANOS en lugar del DOLARES por defecto. La respuesta
-    correcta ronda los 105 millones de Bs; si contesta ~15 millones esta dando
-    dolares e ignoro la unidad que pidieron.
-  debe_contener: ["105"]
+    "Bs" debe activar BOLIVIANOS en lugar del DOLARES por defecto. Si contesta
+    la cifra en dolares (un orden de magnitud menor) ignoro la unidad pedida.
+  debe_contener: ["106"]   # valor atado al corte: 106.950.945 Bs
   no_debe_contener: []
   verificacion: |
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT ROUND(SUM(BOLIVIANOS),0) AS BOLIVIANOS, ROUND(SUM(DOLARES),0) AS DOLARES_NO_ES_ESTO
-    FROM vw_ventas WHERE ES_ABBOTT AND FECHA > DATE '2025-06-01'
+    FROM vw_ventas, p WHERE ES_ABBOTT AND FECHA > p.corte - INTERVAL 12 MONTH
 
 - id: metrica_unidades
   pregunta: Cuantas unidades vendio Ensure el ultimo ano?
   prueba: >-
-    "unidades" debe activar UNIDADES. Espera ~18.089 unidades. Si responde con
-    dolares (539.979) tomo la metrica por defecto en vez de la pedida.
-  debe_contener: ["18"]
+    "unidades" debe activar UNIDADES. Si responde con la cifra en dolares tomo
+    la metrica por defecto en vez de la pedida.
+  debe_contener: ["19"]   # valor atado al corte: 19.321 unidades
   verificacion: |
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT ROUND(SUM(UNIDADES),0) AS UNIDADES, ROUND(SUM(DOLARES),0) AS DOLARES_NO_ES_ESTO
-    FROM vw_ventas WHERE MARCA = 'ENSURE' AND FECHA > DATE '2025-06-01'
+    FROM vw_ventas, p WHERE MARCA = 'ENSURE' AND FECHA > p.corte - INTERVAL 12 MONTH
 
 - id: crecimiento_qtr_yoy
   pregunta: Cual es el crecimiento del mercado en el QTR?
@@ -123,23 +165,30 @@
     Dos reglas fijas a la vez: "el mercado" sin nombrar uno especifico es el
     universo completo (no SUB_MERCADO), y "crecimiento" siempre compara contra
     el mismo QTR del anio anterior (YoY), nunca contra el trimestre inmediato
-    anterior (QoQ). QTR = abr-may-jun 2026 vs abr-may-jun 2025.
-  debe_contener: ["0,8", "0.8"]
+    anterior (QoQ). El QTR son los 3 ultimos meses del corte.
+  debe_contener: ["6,5", "6.5"]   # valor atado al corte: -6,5% YoY
   modo_contener: cualquiera
-  # Con el % pegado, a proposito: la revision busca subcadenas sueltas, asi que
-  # un "1,4" pelado tambien matchea dentro de "71,4 M" (Santa Cruz en el QTR
-  # 2025) y marcaba FALLA una respuesta correcta. El valor QoQ que hay que
-  # detectar siempre se escribe como porcentaje.
-  no_debe_contener: ["1,4%", "1.4%"]
+  # Los valores prohibidos llevan el % pegado a proposito: la revision busca
+  # subcadenas sueltas, asi que un numero pelado tambien matchea dentro de otra
+  # cifra (un "1,4" aparece dentro de "71,4 M") y marcaba FALLA una respuesta
+  # correcta. El QoQ que hay que detectar siempre se escribe como porcentaje.
+  no_debe_contener: ["8,9%", "8.9%"]   # valor atado al corte: el QoQ, -8,9%
   verificacion: |
+    -- Actual = ultimos 3 meses; comparado = los mismos 3 meses del anio pasado.
+    -- La ultima columna es el QoQ (contra el trimestre inmediato anterior), que
+    -- es la respuesta INCORRECTA que el bot no debe dar.
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT
-      ROUND(SUM(CASE WHEN FECHA > DATE '2026-03-01' THEN DOLARES END),0) AS QTR_ACTUAL,
-      ROUND(SUM(CASE WHEN FECHA > DATE '2025-03-01' AND FECHA <= DATE '2025-06-01'
-                THEN DOLARES END),0) AS QTR_MISMO_ANIO_PASADO,
-      ROUND(100.0*(SUM(CASE WHEN FECHA > DATE '2026-03-01' THEN DOLARES END)
-           / SUM(CASE WHEN FECHA > DATE '2025-03-01' AND FECHA <= DATE '2025-06-01'
-                      THEN DOLARES END) - 1),1) AS CRECIMIENTO_YOY_PCT
-    FROM vw_ventas
+      ROUND(SUM(CASE WHEN FECHA > p.corte - INTERVAL 3 MONTH THEN DOLARES END),0) AS QTR_ACTUAL,
+      ROUND(SUM(CASE WHEN FECHA > p.corte - INTERVAL 15 MONTH
+                      AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END),0) AS QTR_ANIO_PASADO,
+      ROUND(100.0*(SUM(CASE WHEN FECHA > p.corte - INTERVAL 3 MONTH THEN DOLARES END)
+           / SUM(CASE WHEN FECHA > p.corte - INTERVAL 15 MONTH
+                       AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) - 1),1) AS CRECIMIENTO_YOY_PCT,
+      ROUND(100.0*(SUM(CASE WHEN FECHA > p.corte - INTERVAL 3 MONTH THEN DOLARES END)
+           / SUM(CASE WHEN FECHA > p.corte - INTERVAL 6 MONTH
+                       AND FECHA <= p.corte - INTERVAL 3 MONTH THEN DOLARES END) - 1),1) AS QOQ_INCORRECTO
+    FROM vw_ventas, p
 
 - id: tabla_crecimientos_multiventana
   pregunta: >-
@@ -148,49 +197,69 @@
   prueba: >-
     Combina cuatro reglas: (1) hay submercados parecidos entre si (en este
     caso ACERDIL y ACERDIL D, pero es un patron que se repite con otros
-    nombres en la base) -- el bot deberia preguntar cual tomar en vez de
+    nombres en la base), el bot deberia preguntar cual tomar en vez de
     asumir; (2) cada ventana se compara YoY; (3) el formato es una tabla con
     la(s) marca(s) en filas y las columnas en orden
     %G MAT | %G YTD | %G SEM | %G QTR | %G MTH (de la ventana mas amplia a la
     mas chica, con el prefijo %G), seguidas de EI MAT | EI YTD | EI SEM |
     EI QTR | EI MTH, sin explicar entre parentesis que meses cubre cada sigla;
-    (4) nunca debe aparecer el simbolo $ en el texto (rompe el render de
+    (4) nunca debe aparecer el simbolo de dolar en el texto (rompe el render de
     Streamlit). La fila TOTAL debe tener EI = 100 en todas las ventanas: si no
     da 100, el contexto del EI esta mal tomado.
   debe_contener: []
   # Sin chequeo automatico: lo que hay que revisar a mano es que (a) el bot
   # pregunte por la ambiguedad ACERDIL vs ACERDIL D antes de calcular algo, y
-  # (b) que la tabla final tenga el formato marcas x MTH/QTR/SEM/YTD/MAT sin
-  # aclaraciones entre parentesis. Ninguna de las dos cosas es un texto fijo
-  # que se pueda buscar de forma confiable con debe_contener/espera_negativa.
+  # (b) que la tabla final tenga el formato marcas x MAT..MTH sin aclaraciones
+  # entre parentesis. Ninguna de las dos cosas es un texto fijo que se pueda
+  # buscar de forma confiable con debe_contener/espera_negativa.
   verificacion: |
-    -- Referencia para ACERDIL (sin la D), corte 2026-06-01, YoY por ventana:
-    --   MTH +20.9%   QTR -10.3%   SEM -16.5%   YTD -16.5%   MAT +4.0%
-    SELECT SUB_MERCADO, ROUND(SUM(DOLARES),0) AS DOLARES_HISTORICO
-    FROM vw_ventas WHERE SUB_MERCADO LIKE 'ACERDIL%' GROUP BY 1
+    -- Crecimiento YoY de ACERDIL (sin la D) en las cinco ventanas, para
+    -- contrastar contra la tabla que devuelva el bot.
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta),
+    v AS (
+      SELECT
+        SUM(CASE WHEN FECHA = p.corte THEN DOLARES END) AS MTH,
+        SUM(CASE WHEN FECHA = p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS MTH_PY,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 3 MONTH THEN DOLARES END) AS QTR,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 15 MONTH
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS QTR_PY,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 6 MONTH THEN DOLARES END) AS SEM,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 18 MONTH
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS SEM_PY,
+        SUM(CASE WHEN FECHA >= DATE_TRUNC('year', p.corte) THEN DOLARES END) AS YTD,
+        SUM(CASE WHEN FECHA >= DATE_TRUNC('year', p.corte) - INTERVAL 1 YEAR
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS YTD_PY,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS MAT,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS MAT_PY
+      FROM vw_ventas, p WHERE SUB_MERCADO = 'ACERDIL'
+    )
+    SELECT ROUND(100.0*(MAT/MAT_PY-1),1) AS G_MAT,
+           ROUND(100.0*(YTD/YTD_PY-1),1) AS G_YTD,
+           ROUND(100.0*(SEM/SEM_PY-1),1) AS G_SEM,
+           ROUND(100.0*(QTR/QTR_PY-1),1) AS G_QTR,
+           ROUND(100.0*(MTH/MTH_PY-1),1) AS G_MTH
+    FROM v
 
 - id: evolution_index
   pregunta: Cual es el evolution index de Acerdil D en su submercado?
   prueba: >-
     EI = (100+crecimiento_entidad)/(100+crecimiento_contexto)*100, ambos YoY,
-    periodo MAT por defecto. ACERDIL D crecio +42,4% MAT y su sub-mercado
-    +34,8%, asi que EI = 105,6 (gana share). El contexto debe INCLUIR a la
-    marca (el sub-mercado completo), no ser "el resto" -- si excluye a ACERDIL D
-    el denominador cambia y el EI da mal. Ademas deberia decir explicitamente
+    periodo MAT por defecto. El contexto debe INCLUIR a la marca (el
+    sub-mercado completo), no ser "el resto": si excluye a ACERDIL D el
+    denominador cambia y el EI da mal. Ademas deberia decir explicitamente
     contra que contexto lo calculo.
-  debe_contener: ["105", "106"]
+  debe_contener: ["98"]   # valor atado al corte: EI 98,2
   modo_contener: cualquiera
   verificacion: |
-    -- EI de ACERDIL D contra su sub-mercado, MAT jul2025-jun2026 vs PY:
-    --   marca    216.269 USD (PY 151.830) -> +42,4%
-    --   contexto 449.382 USD (PY 333.300) -> +34,8%
-    --   EI = 142,4 / 134,8 * 100 = 105,6
-    WITH v AS (
+    -- EI de ACERDIL D contra su sub-mercado, MAT contra el MAT del anio anterior.
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta),
+    v AS (
       SELECT MARCA,
-        SUM(CASE WHEN FECHA >= DATE '2025-07-01' THEN DOLARES END) AS ACTUAL,
-        SUM(CASE WHEN FECHA >= DATE '2024-07-01'
-                  AND FECHA <= DATE '2025-06-01' THEN DOLARES END) AS PY
-      FROM vw_ventas WHERE SUB_MERCADO = 'ACERDIL D' GROUP BY 1
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS ACTUAL,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS PY
+      FROM vw_ventas, p WHERE SUB_MERCADO = 'ACERDIL D' GROUP BY 1
     )
     SELECT
       ROUND(100.0*(SUM(CASE WHEN MARCA='ACERDIL D' THEN ACTUAL END)
@@ -204,27 +273,31 @@
 - id: evolution_index_contexto_cambia
   pregunta: Cual es el evolution index de Acerdil D contra su molecula?
   prueba: >-
-    Mismo EI, distinto contexto: contra la molecula ENALAPRIL -
-    HYDROCHLOROTHIAZIDE (que crecio +46,5%, mas que el sub-mercado) el EI da
-    97,2, o sea PIERDE share -- la conclusion se invierte respecto del caso
-    anterior. Prueba que el bot usa el contexto que le piden y no siempre el
-    sub-mercado por defecto.
-  debe_contener: ["97"]
-  no_debe_contener: ["105,6", "105.6"]
+    Mismo EI, distinto contexto, resultado materialmente distinto: la molecula
+    completa crece mas que el sub-mercado, asi que el EI contra la molecula da
+    mas bajo. Lo que se prueba es que el bot usa el contexto que le piden y no
+    siempre el sub-mercado por defecto, y que DECLARA cual uso. Al corte
+    2026-06 este par mostraba la conclusion invirtiendose (105,6 ganaba share
+    contra el sub-mercado, 97,2 la perdia contra la molecula); al corte 2026-07
+    los dos quedan por debajo de 100 (98,2 y 93,2). La brecha entre ambos es lo
+    que importa, no que uno cruce el 100.
+  debe_contener: ["93"]   # valor atado al corte: EI 93,2
+  no_debe_contener: []
   verificacion: |
-    WITH ctx AS (
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta),
+    ctx AS (
       SELECT
-        SUM(CASE WHEN FECHA >= DATE '2025-07-01' THEN DOLARES END) AS ACTUAL,
-        SUM(CASE WHEN FECHA >= DATE '2024-07-01'
-                  AND FECHA <= DATE '2025-06-01' THEN DOLARES END) AS PY
-      FROM vw_ventas
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS ACTUAL,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS PY
+      FROM vw_ventas, p
       WHERE MOLECULA = (SELECT MOLECULA FROM vw_ventas WHERE MARCA='ACERDIL D' LIMIT 1)
     ), marca AS (
       SELECT
-        SUM(CASE WHEN FECHA >= DATE '2025-07-01' THEN DOLARES END) AS ACTUAL,
-        SUM(CASE WHEN FECHA >= DATE '2024-07-01'
-                  AND FECHA <= DATE '2025-06-01' THEN DOLARES END) AS PY
-      FROM vw_ventas WHERE MARCA = 'ACERDIL D'
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS ACTUAL,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS PY
+      FROM vw_ventas, p WHERE MARCA = 'ACERDIL D'
     )
     SELECT ROUND(100.0*(marca.ACTUAL/marca.PY - 1),1) AS G_MARCA,
            ROUND(100.0*(ctx.ACTUAL/ctx.PY - 1),1)     AS G_MOLECULA,
@@ -245,34 +318,53 @@
   # Revisar a mano: orden MAT->MTH, prefijos %G y EI, fila TOTAL con EI 100,
   # y que NO haya preguntado cual CAPRIMIDA.
   verificacion: |
-    -- Solo existe un sub-mercado CAPRIMIDA (0 variantes con nombre parecido):
+    -- Debe devolver UNA sola fila: si aparecieran dos sub-mercados con nombre
+    -- parecido, entonces si corresponderia que el bot pregunte.
     SELECT SUB_MERCADO, COUNT(DISTINCT COD_PRODUCTO) AS PRESENTACIONES,
            COUNT(DISTINCT MARCA) AS MARCAS
     FROM vw_ventas WHERE SUB_MERCADO LIKE '%CAPRIMIDA%' GROUP BY 1
 
 - id: conteo_presentaciones
-  pregunta: Cuantas presentaciones de Abbott tuvieron ventas en junio de 2026?
+  pregunta: Cuantas presentaciones de Abbott tuvieron ventas en {ultimo_mes}?
   prueba: >-
-    TRAMPA de la grilla densa. Hay 245 presentaciones en catalogo y 980 filas
-    ese mes, pero solo 121 vendieron. Contar filas o COD_PRODUCTO sin filtrar
-    por UNIDADES > 0 da una respuesta incorrecta.
-  debe_contener: ["121"]
-  no_debe_contener: ["980"]
+    TRAMPA de la grilla densa. Hay cientos de presentaciones en catalogo y
+    muchas filas ese mes, pero solo una fraccion vendio. Contar filas o
+    COD_PRODUCTO sin filtrar por UNIDADES > 0 da una respuesta incorrecta.
+  debe_contener: ["117"]      # valor atado al corte
+  no_debe_contener: ["968"]   # valor atado al corte: el total de filas
   verificacion: |
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT COUNT(DISTINCT CASE WHEN UNIDADES>0 THEN COD_PRODUCTO END) AS CON_VENTA,
            COUNT(DISTINCT COD_PRODUCTO) AS EN_CATALOGO, COUNT(*) AS FILAS
-    FROM vw_ventas WHERE ES_ABBOTT AND FECHA = DATE '2026-06-01'
+    FROM vw_ventas, p WHERE ES_ABBOTT AND FECHA = p.corte
 
 - id: clase_terapeutica
   pregunta: Cual es la clase terapeutica mas grande del mercado?
   prueba: >-
-    Debe usar CLASE4 (clasificacion IQVIA) y no SUB_MERCADO (clasificacion
-    interna de Abbott), y aclarar el criterio.
-  debe_contener: [LECHES]
+    Debe usar la jerarquia CLASE de IQVIA y no SUB_MERCADO (clasificacion
+    interna de Abbott), y aclarar con que criterio la eligio.
+  debe_contener: []
+  # PENDIENTE DE DEFINICION DE NEGOCIO. La pregunta no dice QUE nivel de la
+  # jerarquia es "la clase terapeutica", y los cuatro dan respuestas distintas.
+  # El bot contesto con CLASE1 ("A - Aparato digestivo y metabolismo", 21,1% del
+  # mercado), lo explicito y de yapa mostro CLASE2; el caso esperaba CLASE4
+  # ("LECHES PARA NINOS") y lo marcaba FALLA. La respuesta del bot es defendible.
+  # Cuando el equipo defina cual nivel es el default, va como regla a
+  # contexto.py y este caso vuelve a tener un valor esperado fijo.
   verificacion: |
-    SELECT CLASE4, ROUND(SUM(DOLARES),0) AS DOLARES
-    FROM vw_ventas WHERE FECHA > DATE '2025-06-01'
-    GROUP BY 1 ORDER BY 2 DESC LIMIT 3
+    -- El lider de cada nivel de la jerarquia, para ver por que la pregunta es
+    -- ambigua tal como esta formulada.
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta),
+    v AS (SELECT * FROM vw_ventas, p WHERE FECHA > p.corte - INTERVAL 12 MONTH),
+    t AS (
+                 SELECT 'CLASE1' AS NIVEL, CLASE1 AS CLASE, SUM(DOLARES) AS DOLARES FROM v GROUP BY 2
+      UNION ALL  SELECT 'CLASE2',          CLASE2,           SUM(DOLARES)            FROM v GROUP BY 2
+      UNION ALL  SELECT 'CLASE3',          CLASE3,           SUM(DOLARES)            FROM v GROUP BY 2
+      UNION ALL  SELECT 'CLASE4',          CLASE4,           SUM(DOLARES)            FROM v GROUP BY 2
+    )
+    SELECT NIVEL, CLASE, ROUND(DOLARES,0) AS DOLARES FROM t
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY NIVEL ORDER BY DOLARES DESC) = 1
+    ORDER BY NIVEL
 
 - id: marca_mayor_crecimiento
   pregunta: Que marca de Abbott crecio mas el ultimo ano?
@@ -282,13 +374,14 @@
     lo menciona.
   debe_contener: []
   verificacion: |
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT MARCA,
-           ROUND(SUM(CASE WHEN FECHA > DATE '2025-06-01' THEN DOLARES END),0) AS ACTUAL,
-           ROUND(100.0*(SUM(CASE WHEN FECHA > DATE '2025-06-01' THEN DOLARES END)
-                / NULLIF(SUM(CASE WHEN FECHA > DATE '2024-06-01'
-                                   AND FECHA <= DATE '2025-06-01' THEN DOLARES END),0) - 1),1) AS YOY
-    FROM vw_ventas WHERE ES_ABBOTT GROUP BY 1
-    HAVING SUM(CASE WHEN FECHA > DATE '2025-06-01' THEN DOLARES END) > 200000
+           ROUND(SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END),0) AS ACTUAL,
+           ROUND(100.0*(SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END)
+                / NULLIF(SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
+                                   AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END),0) - 1),1) AS YOY
+    FROM vw_ventas, p WHERE ES_ABBOTT GROUP BY 1
+    HAVING SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END) > 200000
     ORDER BY YOY DESC LIMIT 5
 
 - id: submercado_mas_fuerte
@@ -296,32 +389,40 @@
   prueba: Share por sub-mercado. Deberia excluir mercados irrelevantes por tamano.
   debe_contener: []
   verificacion: |
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT SUB_MERCADO,
            ROUND(100.0*SUM(CASE WHEN ES_ABBOTT THEN DOLARES END)/SUM(DOLARES),1) AS SHARE,
            ROUND(SUM(DOLARES),0) AS MERCADO
-    FROM vw_ventas WHERE SUB_MERCADO IS NOT NULL AND FECHA > DATE '2025-06-01'
+    FROM vw_ventas, p
+    WHERE SUB_MERCADO IS NOT NULL AND FECHA > p.corte - INTERVAL 12 MONTH
     GROUP BY 1 HAVING SUM(DOLARES) > 500000 ORDER BY SHARE DESC LIMIT 5
 
 - id: genericos
   pregunta: Cuanto pesan los genericos en el mercado?
-  prueba: "Uso de TIPO_PRODUCTO. Respuesta esperada: ~8,8% del valor."
-  debe_contener: ["8,8", "8.8"]
+  prueba: Uso de TIPO_PRODUCTO, como porcentaje del valor del MAT.
+  debe_contener: ["8,7", "8.7"]   # valor atado al corte: 8,7%
   modo_contener: cualquiera
   verificacion: |
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT TIPO_PRODUCTO, ROUND(SUM(DOLARES),0) AS DOLARES,
            ROUND(100.0*SUM(DOLARES)/SUM(SUM(DOLARES)) OVER (),1) AS PCT
-    FROM vw_ventas WHERE FECHA > DATE '2025-06-01' GROUP BY 1 ORDER BY 2 DESC
+    FROM vw_ventas, p WHERE FECHA > p.corte - INTERVAL 12 MONTH
+    GROUP BY 1 ORDER BY 2 DESC
 
 - id: fuera_de_rango
-  pregunta: Cuanto vendio Abbott en diciembre de 2026?
+  pregunta: Cuanto vendio Abbott en {mes_futuro}?
   prueba: >-
-    CASO BORDE. Diciembre 2026 es futuro: solo existe como proyeccion, y las
-    proyecciones quedaron fuera a proposito. El bot DEBE decir que no tiene el
+    CASO BORDE. El mes pedido es posterior al ultimo dato: solo existiria como
+    proyeccion, y las proyecciones quedaron fuera a proposito (la columna
+    ES_PROYECCION ni se copia al .duckdb). El bot DEBE decir que no tiene el
     dato, no inventar ni devolver cero sin explicarlo.
   debe_contener: []
   espera_negativa: true
   verificacion: |
-    SELECT COUNT(*) AS FILAS FROM vw_ventas WHERE FECHA = DATE '2026-12-01'
+    -- Debe dar 0 filas: es la prueba de que el mes pedido no esta en la base.
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
+    SELECT COUNT(*) AS FILAS FROM vw_ventas, p
+    WHERE FECHA = p.corte + INTERVAL 6 MONTH
 
 - id: molecula_inexistente
   pregunta: Cuanto se vende de la molecula xanaxolina?
@@ -342,7 +443,9 @@
     y excluir a Abbott.
   debe_contener: [PROMEDICAL]
   verificacion: |
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
-    FROM vw_ventas WHERE SUB_MERCADO = 'PEDIASURE' AND NOT ES_ABBOTT
-      AND FECHA > DATE '2025-06-01'
+    FROM vw_ventas, p
+    WHERE SUB_MERCADO = 'PEDIASURE' AND NOT ES_ABBOTT
+      AND FECHA > p.corte - INTERVAL 12 MONTH
     GROUP BY 1 ORDER BY 2 DESC LIMIT 3

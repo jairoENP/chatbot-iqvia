@@ -26,11 +26,40 @@ sys.path.insert(0, str(RAIZ / "chatbot"))
 from contexto import RUTA_DB_POR_DEFECTO  # noqa: E402
 
 # Frases que indican que el agente reconocio no tener el dato.
+#
+# La lista tiene que ser generosa: el bot parafrasea. Una version anterior solo
+# tenia "no puedo responder" y marcaba FALLA una respuesta que empezaba con
+# "No puedo darte la venta de enero de 2027: ese mes todavia no esta en la
+# base" -- impecable, pero sin ninguna de las frases exactas. Un falso positivo
+# aca es peor que un falso negativo: hace desconfiar de un comportamiento que
+# esta bien. Un bot que inventa una cifra no va a decir "no puedo" ni "todavia
+# no", asi que ampliar no afloja la prueba.
 SENALES_NEGATIVAS = (
     "no tengo", "no hay datos", "no existe", "no encontre", "no encuentro",
     "no dispongo", "fuera del periodo", "no figura", "no aparece",
-    "no puedo responder", "sin datos", "no se encontro",
+    "no puedo", "sin datos", "no se encontro", "no esta en la base",
+    "todavia no", "aun no", "no llega", "no cuento con", "no disponible",
 )
+
+
+MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+         "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+
+
+def resolver_marcadores(texto: str, corte) -> str:
+    """Reemplaza los marcadores de fecha de las preguntas por el corte real.
+
+    Las preguntas no pueden llevar meses escritos a mano: al recargar el
+    .duckdb, "junio de 2026" deja de ser el ultimo mes y el caso termina
+    probando otra cosa. `{mes_futuro}` se corre 6 meses despues del corte para
+    que siga quedando fuera de los datos por muchas recargas.
+    """
+    indice = corte.month - 1 + 6
+    return (
+        texto
+        .replace("{ultimo_mes}", f"{MESES[corte.month - 1]} de {corte.year}")
+        .replace("{mes_futuro}", f"{MESES[indice % 12]} de {corte.year + indice // 12}")
+    )
 
 
 def normalizar(texto: str) -> str:
@@ -91,6 +120,14 @@ def main() -> None:
             sys.exit(f"No existe el caso '{args.caso}'.")
 
     con = duckdb.connect(str(RUTA_DB_POR_DEFECTO), read_only=True)
+
+    # Las fechas de las verificaciones salen de meta.FECHA_CORTE, asi que el set
+    # se ajusta solo al recargar datos. Los marcadores del texto de las
+    # preguntas se resuelven aca, con ese mismo corte.
+    corte = con.execute("SELECT FECHA_CORTE FROM meta").fetchone()[0]
+    for caso in casos:
+        caso["pregunta"] = resolver_marcadores(caso["pregunta"], corte)
+    print(f"Corte de los datos: {corte}")
 
     if args.recalcular:
         for caso in casos:
