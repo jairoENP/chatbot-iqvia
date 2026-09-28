@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 import duckdb
@@ -44,6 +45,17 @@ def dibujar_paso(paso: Paso) -> None:
         else:
             st.caption(paso.entrada)
         st.text(paso.salida[:3000])
+
+
+def dibujar_costo(costo: float, llamadas: int, segundos: float) -> None:
+    """Pie con el costo de UNA pregunta.
+
+    Se escribe "USD" y no el simbolo de dolar: Streamlit interpreta el texto
+    entre dos signos `$` como formula LaTeX y rompe el render.
+    """
+    st.caption(
+        f"⌁ USD {costo:.3f} · {llamadas} llamadas a la API · {segundos:.0f}s"
+    )
 
 
 @st.cache_resource(show_spinner="Abriendo la base...")
@@ -130,6 +142,8 @@ for indice_turno, turno in enumerate(st.session_state.historial):
                 use_container_width=True,
                 key=f"hist-{indice_turno}-{indice_figura}",
             )
+        if turno.get("costo") is not None:
+            dibujar_costo(turno["costo"], turno["llamadas"], turno["segundos"])
 
 # -- turno nuevo ------------------------------------------------------------
 if pregunta := st.chat_input("Pregunta sobre el mercado..."):
@@ -145,6 +159,12 @@ if pregunta := st.chat_input("Pregunta sobre el mercado..."):
         texto = ""
         pasos: list[Paso] = []
         estado.caption("Pensando...")
+
+        # El Agente acumula el gasto de toda la sesion, asi que el costo de
+        # ESTA pregunta es la diferencia entre antes y despues del turno.
+        costo_antes = agente.costo_usd
+        llamadas_antes = agente.llamadas_api
+        arranque = time.monotonic()
 
         for evento in agente.preguntar(pregunta):
             if evento.tipo == "texto":
@@ -172,6 +192,12 @@ if pregunta := st.chat_input("Pregunta sobre el mercado..."):
                 key=f"vivo-{len(st.session_state.historial)}-{indice_figura}",
             )
 
+        costo = agente.costo_usd - costo_antes
+        llamadas = agente.llamadas_api - llamadas_antes
+        segundos = time.monotonic() - arranque
+        dibujar_costo(costo, llamadas, segundos)
+
     st.session_state.historial.append(
-        {"rol": "assistant", "texto": texto, "pasos": pasos, "figuras": figuras}
+        {"rol": "assistant", "texto": texto, "pasos": pasos, "figuras": figuras,
+         "costo": costo, "llamadas": llamadas, "segundos": segundos}
     )
