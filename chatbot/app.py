@@ -34,8 +34,6 @@ EJEMPLOS = [
      "¿En qué submercados vamos mal y por qué?"),
     ("Ranking por corporación",
      "Dame el ranking por corporación y el detalle."),
-    ("Por qué crecemos menos",
-     "¿Por qué tenemos un crecimiento inferior al mercado?"),
 ]
 
 st.set_page_config(page_title="Sniper IA", page_icon="🎯", layout="wide")
