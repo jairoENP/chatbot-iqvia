@@ -19,27 +19,23 @@ from tools import Paso  # noqa: E402
 
 # Etiqueta corta para el boton + la pregunta completa que se envia. La barra
 # lateral es angosta: el texto entero de estas preguntas ocuparia tres o cuatro
-# lineas por boton. Las dos primeras son de diagnostico y van arriba a
-# proposito: son las que muestran lo que no se saca de un Power BI en dos
-# minutos. Tambien son las mas caras (recorren los 52 sub-mercados en varias
-# ventanas), asi que se notan en el contador.
+# lineas por boton.
+#
+# Son las preguntas que el equipo comercial hace de verdad, con sus palabras.
+# Tres de las cinco piden "y por que" o "el detalle": eso dispara varias vueltas
+# de herramientas, asi que son las mas caras de la app. Se nota en el contador
+# al pie de cada respuesta.
 EJEMPLOS = [
-    ("Donde perdemos share",
-     "En que submercados crece el mercado y nosotros perdemos share?"),
-    ("Precio vs. volumen",
-     "En que submercados crecimos en dolares pero caimos en unidades?"),
-    ("Evolution index",
-     "Cual es el evolution index de nuestras marcas en el submercado Pediasure?"),
-    ("Crecimientos por ventana",
-     "Dame los crecimientos del submercado Ensure en MAT, YTD, SEM, QTR y MTH"),
-    ("Grafico Abbott vs. mercado",
-     "Grafica la evolucion mensual de Abbott vs el mercado en los ultimos 24 meses"),
-    ("Mi competencia",
-     "En el sub-mercado de Ensure, quien es mi mayor competencia?"),
-    ("Ventas en bolivianos",
-     "Cuanto vendimos en bolivianos el ultimo trimestre?"),
-    ("Seguimiento de lanzamiento",
-     "Como viene PEDIASURE PEPTIGRO desde su lanzamiento?"),
+    ("Cómo estamos vs. el mercado",
+     "¿Cómo estamos vs el mercado?"),
+    ("Dónde vamos bien",
+     "¿En qué submercados vamos bien y por qué?"),
+    ("Dónde vamos mal",
+     "¿En qué submercados vamos mal y por qué?"),
+    ("Ranking por corporación",
+     "Dame el ranking por corporación y el detalle."),
+    ("Por qué crecemos menos",
+     "¿Por qué tenemos un crecimiento inferior al mercado?"),
 ]
 
 st.set_page_config(page_title="Sniper IA", page_icon="🎯", layout="wide")
