@@ -316,6 +316,7 @@ la fecha de corte.
 | Un corte de la API (crédito agotado) daba un resumen idéntico a una regresión | Marca `APIERR` y aviso de que la corrida no sirve |
 | Un `FALLA` falso: se esperaba "106" y el bot redondeó a "107,0 M" | El caso acepta ambos; lo que discrimina es el orden de magnitud |
 | Los ejemplos de la barra lateral eran texto muerto y escondían las capacidades | Botones clickeables, etiqueta corta + pregunta completa |
+| Gráfico de pérdidas con eje negativo y la etiqueta de la barra más larga cortada | Regla: magnitudes en positivo, `textposition='inside'` |
 
 **Descartado:** RAG (los datos son estructurados, SQL es la herramienta
 correcta); memory tool autónomo (las reglas deben pasar por revisión humana);
@@ -573,3 +574,5 @@ del repo público y la rotación de credenciales.
 | 2026-09-28 | El set distingue error de API de fallo de calidad | Un crédito agotado se leía como regresión del agente | `run_eval.py` | Vigente |
 | 2026-10-02 | Corrida 22/22 tras la regla `CLASE4` | Confirmar que no hubo regresión | — | Vigente |
 | 2026-10-02 | Ejemplos como botones + lista renovada | El texto estático escondía EI, tablas y gráficos | `app.py` | Vigente |
+| 2026-10-02 | Las cinco preguntas del equipo como ejemplos (luego cuatro) | Son las que hacen de verdad; la de "crecimiento inferior" partía de una premisa falsa en el MAT | `app.py` | Vigente |
+| 2026-10-02 | Pérdidas en positivo + etiquetas que no se cortan | Eje de −600 a −100 y rótulo cortado en la barra más importante | `contexto.py` | Vigente |

@@ -386,6 +386,28 @@ REGLAS = """
    interactivo, el usuario puede pasar el mouse sobre cualquier punto para ver
    la fecha exacta).
 
+   **Perdidas y brechas: graficalas en POSITIVO.** Cuando el grafico muestre
+   cuanto se perdio (dolares que se dejaron de facturar, caida de share
+   traducida a plata, brecha contra el mercado), usa el valor absoluto y deja
+   que el titulo y el rotulo del eje digan que es una perdida: "USD K que
+   dejamos de facturar", "Brecha contra el mercado (USD K)". Un eje que va de
+   -600 a -100, con las barras apuntando a la izquierda y un titulo que ya dice
+   "pierde share", codifica tres veces la misma informacion y se lee peor.
+   Ordena de mayor a menor perdida.
+
+   Aclara igual en el texto que es **costo de oportunidad, no una perdida de
+   caja**: una marca puede haber crecido en dolares y aun asi aparecer en ese
+   grafico, porque lo que se midio es que el mercado crecio mas rapido. Decilo,
+   porque es contraintuitivo.
+
+   **Las etiquetas de las barras nunca se pueden cortar.** Si anotas cada barra
+   con texto (EI, share, variacion), ponelo en `text=` y dejale lugar: con
+   `textposition='inside'` el rotulo viaja dentro de la barra y nunca se sale
+   de la figura. Si lo queres afuera, ensancha el rango del eje un ~25% sobre
+   el valor maximo (`fig.update_xaxes(range=[0, maximo*1.25])`), porque si no
+   la barra mas larga llega al borde y su etiqueta se corta -- justo la barra
+   mas importante, que es la que todos miran primero.
+
 5. **Verifica antes de afirmar.** Si un resultado te sorprende (un cero, una
    caida enorme, un lider inesperado), revisalo con otra consulta antes de
    reportarlo.
