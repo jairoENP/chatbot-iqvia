@@ -314,6 +314,8 @@ la fecha de corte.
 | El set de evaluación se rompía en cada recarga de datos | Fechas derivadas de `meta.FECHA_CORTE` |
 | Un `FALLA` falso: el bot decía "no puedo darte" y la lista pedía "no puedo responder" | `SENALES_NEGATIVAS` ampliada |
 | Un corte de la API (crédito agotado) daba un resumen idéntico a una regresión | Marca `APIERR` y aviso de que la corrida no sirve |
+| Un `FALLA` falso: se esperaba "106" y el bot redondeó a "107,0 M" | El caso acepta ambos; lo que discrimina es el orden de magnitud |
+| Los ejemplos de la barra lateral eran texto muerto y escondían las capacidades | Botones clickeables, etiqueta corta + pregunta completa |
 
 **Descartado:** RAG (los datos son estructurados, SQL es la herramienta
 correcta); memory tool autónomo (las reglas deben pasar por revisión humana);
@@ -330,7 +332,12 @@ las 3 herramientas, el diccionario de negocio, deploy automático.
 contra la API real por primera vez**, al corte 2026-07 y con Opus 5.5 /
 `medium`. Resultado final **22/22**, de los cuales 6 son de revisión manual.
 
-Las 3 fallas de la primera pasada no eran del bot:
+La corrida del **2026-10-02** (tras fijar `CLASE4`) dio **22/22**, confirmando
+que la regla nueva no causó regresiones. Su única falla inicial fue otro falso
+positivo del arnés: se esperaba `"106"` y el bot contestó `"Bs 107,0 millones"`
+—correcto, la verdad es 106.950.945— así que el caso ahora acepta ambos.
+
+Las 3 fallas de la primera pasada tampoco eran del bot:
 - `fuera_de_rango` — el bot respondió *"No puedo darte la venta de enero de
   2027: ese mes todavía no está en la base"*, impecable, pero `SENALES_NEGATIVAS`
   solo tenía `"no puedo responder"`. Lista ampliada.
@@ -564,3 +571,5 @@ del repo público y la rotación de credenciales.
 | 2026-09-28 | Primera corrida completa: 22/22 | Validación end-to-end del agente | — | Vigente |
 | 2026-09-28 | "Clase terapéutica" por defecto = `CLASE4` | Decisión del equipo: es el nivel que usan para trabajar | `contexto.py`, `preguntas.yaml` | Vigente |
 | 2026-09-28 | El set distingue error de API de fallo de calidad | Un crédito agotado se leía como regresión del agente | `run_eval.py` | Vigente |
+| 2026-10-02 | Corrida 22/22 tras la regla `CLASE4` | Confirmar que no hubo regresión | — | Vigente |
+| 2026-10-02 | Ejemplos como botones + lista renovada | El texto estático escondía EI, tablas y gráficos | `app.py` | Vigente |

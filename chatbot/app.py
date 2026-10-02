@@ -17,12 +17,29 @@ from agent import Agente  # noqa: E402
 from contexto import RUTA_DB_POR_DEFECTO  # noqa: E402
 from tools import Paso  # noqa: E402
 
+# Etiqueta corta para el boton + la pregunta completa que se envia. La barra
+# lateral es angosta: el texto entero de estas preguntas ocuparia tres o cuatro
+# lineas por boton. Las dos primeras son de diagnostico y van arriba a
+# proposito: son las que muestran lo que no se saca de un Power BI en dos
+# minutos. Tambien son las mas caras (recorren los 52 sub-mercados en varias
+# ventanas), asi que se notan en el contador.
 EJEMPLOS = [
-    "Cual es el producto que mas se vende de la molecula paracetamol?",
-    "En el sub-mercado de Ensure, quien es mi mayor competencia?",
-    "Como viene la tendencia de las ventas de Abbott en los ultimos 24 meses?",
-    "Que participacion de mercado tiene Abbott en cada region?",
-    "Que marcas de la competencia crecieron mas el ultimo ano?",
+    ("Donde perdemos share",
+     "En que submercados crece el mercado y nosotros perdemos share?"),
+    ("Precio vs. volumen",
+     "En que submercados crecimos en dolares pero caimos en unidades?"),
+    ("Evolution index",
+     "Cual es el evolution index de nuestras marcas en el submercado Pediasure?"),
+    ("Crecimientos por ventana",
+     "Dame los crecimientos del submercado Ensure en MAT, YTD, SEM, QTR y MTH"),
+    ("Grafico Abbott vs. mercado",
+     "Grafica la evolucion mensual de Abbott vs el mercado en los ultimos 24 meses"),
+    ("Mi competencia",
+     "En el sub-mercado de Ensure, quien es mi mayor competencia?"),
+    ("Ventas en bolivianos",
+     "Cuanto vendimos en bolivianos el ultimo trimestre?"),
+    ("Seguimiento de lanzamiento",
+     "Como viene PEDIASURE PEPTIGRO desde su lanzamiento?"),
 ]
 
 st.set_page_config(page_title="Sniper IA", page_icon="🎯", layout="wide")
@@ -121,11 +138,20 @@ with st.sidebar:
     if st.button("Nueva conversacion", use_container_width=True):
         agente.reiniciar()
         st.session_state.historial = []
+        # Valvula de escape: si un ejemplo quedo pendiente sin consumirse (por
+        # ejemplo si el script corto antes de llegar al chat), este boton lo
+        # descarta en vez de dispararlo en el proximo rerun.
+        st.session_state.pop("pregunta_pendiente", None)
         st.rerun()
     st.divider()
     st.caption("**Ejemplos**")
-    for ejemplo in EJEMPLOS:
-        st.caption(f"· {ejemplo}")
+    # Al apretar un boton, Streamlit reejecuta el script de arriba abajo. La
+    # barra lateral se dibuja ANTES del turno nuevo, asi que dejar la pregunta
+    # en session_state alcanza: cuando el flujo llegue al chat, ya esta ahi.
+    # No hace falta st.rerun().
+    for indice, (etiqueta, pregunta_ejemplo) in enumerate(EJEMPLOS):
+        if st.button(etiqueta, key=f"ejemplo-{indice}", use_container_width=True):
+            st.session_state.pregunta_pendiente = pregunta_ejemplo
 
 # -- historial --------------------------------------------------------------
 # st.plotly_chart deriva su id del contenido del grafico, asi que dos figuras
@@ -146,7 +172,13 @@ for indice_turno, turno in enumerate(st.session_state.historial):
             dibujar_costo(turno["costo"], turno["llamadas"], turno["segundos"])
 
 # -- turno nuevo ------------------------------------------------------------
-if pregunta := st.chat_input("Pregunta sobre el mercado..."):
+pregunta = st.chat_input("Pregunta sobre el mercado...")
+# Un boton de ejemplo deja la pregunta aca. Se consume con pop para que no se
+# vuelva a disparar en el siguiente rerun. Lo que escriba el usuario gana.
+if not pregunta:
+    pregunta = st.session_state.pop("pregunta_pendiente", None)
+
+if pregunta:
     st.session_state.historial.append({"rol": "user", "texto": pregunta})
     with st.chat_message("user"):
         st.markdown(pregunta)

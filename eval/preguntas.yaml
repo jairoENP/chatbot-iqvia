@@ -141,7 +141,11 @@
   prueba: >-
     "Bs" debe activar BOLIVIANOS en lugar del DOLARES por defecto. Si contesta
     la cifra en dolares (un orden de magnitud menor) ignoro la unidad pedida.
-  debe_contener: ["106"]   # valor atado al corte: 106.950.945 Bs
+  # Acepta 106 o 107: la verdad es 106.950.945 Bs y el bot redondea a "107,0 M",
+  # que es lo correcto. Lo que de verdad discrimina este caso es el orden de
+  # magnitud -- ~107 millones en Bs contra ~15 millones en USD -- no el digito.
+  debe_contener: ["107", "106"]   # valor atado al corte: 106.950.945 Bs
+  modo_contener: cualquiera
   no_debe_contener: []
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
