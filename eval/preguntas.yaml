@@ -81,7 +81,7 @@
 - id: share_abbott_total
   pregunta: Que participacion de mercado tiene Abbott en el total del mercado?
   prueba: Share global. Verifica que no confunda el universo total con el seguido.
-  debe_contener: ["2,7"]   # valor atado al corte
+  debe_contener: ["2,8"]   # valor atado al corte: 2,82%
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT ROUND(100.0*SUM(CASE WHEN ES_ABBOTT THEN DOLARES END)/SUM(DOLARES),2) AS SHARE_PCT
@@ -114,7 +114,7 @@
   prueba: >-
     Debe usar Python, no solo SQL, comparando el MAT contra el MAT del anio
     anterior. Deberia acompanar con un grafico.
-  debe_contener: ["16"]   # valor atado al corte: +16,7%
+  debe_contener: ["16"]   # valor atado al corte: +16,4%
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT ROUND(100.0*(
@@ -129,7 +129,7 @@
     TRAMPA. PRECIOS es precio unitario: sumarlo o promediarlo sin ponderar da
     cualquier cosa. La respuesta correcta es SUM(DOLARES)/SUM(UNIDADES).
     Ademas MARCA requiere el valor limpio.
-  debe_contener: ["29"]   # valor atado al corte: 29,22
+  debe_contener: ["26"]   # valor atado al corte: 26,05
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT ROUND(SUM(DOLARES)/NULLIF(SUM(UNIDADES),0),2) AS PRECIO_PONDERADO
@@ -144,7 +144,7 @@
   # Acepta 106 o 107: la verdad es 106.950.945 Bs y el bot redondea a "107,0 M",
   # que es lo correcto. Lo que de verdad discrimina este caso es el orden de
   # magnitud -- ~107 millones en Bs contra ~15 millones en USD -- no el digito.
-  debe_contener: ["107", "106"]   # valor atado al corte: 106.950.945 Bs
+  debe_contener: ["113", "114"]   # valor atado al corte: 113.502.392 Bs
   modo_contener: cualquiera
   no_debe_contener: []
   verificacion: |
@@ -157,7 +157,7 @@
   prueba: >-
     "unidades" debe activar UNIDADES. Si responde con la cifra en dolares tomo
     la metrica por defecto en vez de la pedida.
-  debe_contener: ["19"]   # valor atado al corte: 19.321 unidades
+  debe_contener: ["22"]   # valor atado al corte: 22.649 unidades
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT ROUND(SUM(UNIDADES),0) AS UNIDADES, ROUND(SUM(DOLARES),0) AS DOLARES_NO_ES_ESTO
@@ -170,13 +170,13 @@
     universo completo (no SUB_MERCADO), y "crecimiento" siempre compara contra
     el mismo QTR del anio anterior (YoY), nunca contra el trimestre inmediato
     anterior (QoQ). El QTR son los 3 ultimos meses del corte.
-  debe_contener: ["6,5", "6.5"]   # valor atado al corte: -6,5% YoY
+  debe_contener: ["15,0", "15.0"]   # valor atado al corte: -15,0% YoY
   modo_contener: cualquiera
   # Los valores prohibidos llevan el % pegado a proposito: la revision busca
   # subcadenas sueltas, asi que un numero pelado tambien matchea dentro de otra
   # cifra (un "1,4" aparece dentro de "71,4 M") y marcaba FALLA una respuesta
   # correcta. El QoQ que hay que detectar siempre se escribe como porcentaje.
-  no_debe_contener: ["8,9%", "8.9%"]   # valor atado al corte: el QoQ, -8,9%
+  no_debe_contener: ["21,5%", "21.5%"]   # valor atado al corte: el QoQ, -21,5%
   verificacion: |
     -- Actual = ultimos 3 meses; comparado = los mismos 3 meses del anio pasado.
     -- La ultima columna es el QoQ (contra el trimestre inmediato anterior), que
@@ -253,7 +253,7 @@
     sub-mercado completo), no ser "el resto": si excluye a ACERDIL D el
     denominador cambia y el EI da mal. Ademas deberia decir explicitamente
     contra que contexto lo calculo.
-  debe_contener: ["98"]   # valor atado al corte: EI 98,2
+  debe_contener: ["109"]   # valor atado al corte: EI 109,4
   modo_contener: cualquiera
   verificacion: |
     -- EI de ACERDIL D contra su sub-mercado, MAT contra el MAT del anio anterior.
@@ -280,12 +280,13 @@
     Mismo EI, distinto contexto, resultado materialmente distinto: la molecula
     completa crece mas que el sub-mercado, asi que el EI contra la molecula da
     mas bajo. Lo que se prueba es que el bot usa el contexto que le piden y no
-    siempre el sub-mercado por defecto, y que DECLARA cual uso. Al corte
-    2026-06 este par mostraba la conclusion invirtiendose (105,6 ganaba share
-    contra el sub-mercado, 97,2 la perdia contra la molecula); al corte 2026-07
-    los dos quedan por debajo de 100 (98,2 y 93,2). La brecha entre ambos es lo
-    que importa, no que uno cruce el 100.
-  debe_contener: ["93"]   # valor atado al corte: EI 93,2
+    siempre el sub-mercado por defecto, y que DECLARA cual uso. Lo que importa
+    es la BRECHA entre contextos, no que uno cruce el 100: ese umbral se mueve
+    con cada recarga. Corte 2026-06: ganaba contra el sub-mercado y perdia
+    contra la molecula (105,6 y 97,2). Corte 2026-07: perdia en los dos (98,2 y
+    93,2). Corte 2026-08: gana en los dos (109,4 y 105,7). La constante es que
+    el EI contra la molecula siempre da MAS BAJO que contra el sub-mercado.
+  debe_contener: ["105", "106"]   # valor atado al corte: EI 105,7
   no_debe_contener: []
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta),
@@ -334,8 +335,8 @@
     TRAMPA de la grilla densa. Hay cientos de presentaciones en catalogo y
     muchas filas ese mes, pero solo una fraccion vendio. Contar filas o
     COD_PRODUCTO sin filtrar por UNIDADES > 0 da una respuesta incorrecta.
-  debe_contener: ["117"]      # valor atado al corte
-  no_debe_contener: ["968"]   # valor atado al corte: el total de filas
+  debe_contener: ["119"]      # valor atado al corte
+  no_debe_contener: ["944"]   # valor atado al corte: el total de filas
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT COUNT(DISTINCT CASE WHEN UNIDADES>0 THEN COD_PRODUCTO END) AS CON_VENTA,
@@ -403,7 +404,7 @@
 - id: genericos
   pregunta: Cuanto pesan los genericos en el mercado?
   prueba: Uso de TIPO_PRODUCTO, como porcentaje del valor del MAT.
-  debe_contener: ["8,7", "8.7"]   # valor atado al corte: 8,7%
+  debe_contener: ["8,6", "8.6"]   # valor atado al corte: 8,6%
   modo_contener: cualquiera
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)

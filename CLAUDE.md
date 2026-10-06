@@ -117,11 +117,11 @@ ahí, no en el código) y este archivo.
 `dim_calendario` (generada), `meta` (una fila), y **`vw_ventas`** — la vista
 plana que consulta el agente en el 95% de los casos.
 
-**Volumen actual** (corte 2026-07-01, recargado el 2026-09-28): 2.868.240 filas
-· 60 meses (2021-08 → 2026-07) · 11.951 presentaciones · 4 regiones · 52
-sub-mercados · 44,3 MB.
+**Volumen actual** (corte 2026-08-01, recargado el 2026-10-06): 2.897.040 filas
+· 60 meses (2021-09 → 2026-08) · 12.071 presentaciones · 4 regiones · 52
+sub-mercados · 43,0 MB.
 
-La ventana de 60 meses **rueda**: al entrar 2026-07 salió 2021-07. IQVIA reenvía
+La ventana de 60 meses **rueda**: al entrar 2026-08 salió 2021-08. IQVIA reenvía
 siempre los últimos 60 meses, así que el histórico no crece, se desplaza.
 
 ## Reglas de negocio que NO son evidentes en el código
@@ -462,20 +462,20 @@ ambas lado a lado.
 acentos y separadores de miles. Un `FALLA` siempre merece atención; un `OK`
 automático no garantiza que la respuesta sea buena.
 
-**Casos críticos que no deben romperse** (valores al corte 2026-07):
-- `precio_promedio` — trampa del precio ponderado (29,22)
-- `conteo_presentaciones` — trampa de la grilla densa (117, no 968)
-- `crecimiento_qtr_yoy` — YoY (-6,5%), no QoQ (-8,9%)
-- `evolution_index` / `evolution_index_contexto_cambia` — 98,2 vs 93,2
+**Casos críticos que no deben romperse** (valores al corte 2026-08):
+- `precio_promedio` — trampa del precio ponderado (26,05)
+- `conteo_presentaciones` — trampa de la grilla densa (119, no 944)
+- `crecimiento_qtr_yoy` — YoY (-15,0%), no QoQ (-21,5%)
+- `evolution_index` / `evolution_index_contexto_cambia` — 109,4 vs 105,7
 - `fuera_de_rango` / `molecula_inexistente` — debe decir que no tiene el dato
 - `mercado_es_submercado` — "mercado" = SUB_MERCADO
 - `clase_terapeutica` — default `CLASE4` (LECHES PARA NINOS), no `CLASE1`
 
-Al corte 2026-06 el par de Evolution Index mostraba la conclusión
-**invirtiéndose** (105,6 ganaba share contra el sub-mercado, 97,2 la perdía
-contra la molécula). Con los datos de julio ACERDIL D pierde share en los dos
-contextos (98,2 y 93,2): lo que el caso prueba es la **brecha** entre contextos,
-no que uno cruce el 100.
+El par de Evolution Index se dio vuelta tres veces en tres cortes: 2026-06
+(105,6 y 97,2), 2026-07 (98,2 y 93,2), 2026-08 (109,4 y 105,7). **El umbral de
+100 se mueve en cada recarga**, así que lo que el caso prueba es la **brecha**
+entre contextos: el EI contra la molécula siempre da más bajo que contra el
+sub-mercado. Es un recordatorio de lo volátil que es el EI en marcas chicas.
 
 **Limitaciones:** varios casos nuevos no tienen verificación automática confiable
 (formato de tabla, si preguntó ante ambigüedad). Los valores esperados
@@ -576,3 +576,4 @@ del repo público y la rotación de credenciales.
 | 2026-10-02 | Ejemplos como botones + lista renovada | El texto estático escondía EI, tablas y gráficos | `app.py` | Vigente |
 | 2026-10-02 | Las cinco preguntas del equipo como ejemplos (luego cuatro) | Son las que hacen de verdad; la de "crecimiento inferior" partía de una premisa falsa en el MAT | `app.py` | Vigente |
 | 2026-10-02 | Pérdidas en positivo + etiquetas que no se cortan | Eje de −600 a −100 y rótulo cortado en la barra más importante | `contexto.py` | Vigente |
+| 2026-10-06 | Recarga al corte 2026-08 | Llegaron los datos de agosto | `data/iqvia.duckdb`, `preguntas.yaml` | Vigente |
