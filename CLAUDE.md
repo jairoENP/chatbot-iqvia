@@ -185,6 +185,19 @@ corta con `sys.exit()` y el archivo bueno ni se toca.
 (`python eval/run_eval.py --recalcular`): los valores esperados están atados a
 la fecha de corte.
 
+**Y hay que reiniciar la app a mano en Streamlit Cloud.** Comprobado el
+2026-10-06: tras subir el `.duckdb` de agosto, la barra lateral siguió
+mostrando el corte de julio. El push a GitHub se verificó correcto (el blob
+remoto era byte a byte idéntico al archivo local), así que el redeploy
+automático no bastó para un binario de 43 MB. Se resolvió con
+**Manage app → Reboot app** en share.streamlit.io.
+
+Por qué puede pasar: `agente.meta` se lee **una sola vez**, al construir el
+`Agente` (`agent.py:68`), y el `Agente` vive en `st.session_state`. Además
+`abrir_base()` tiene `@st.cache_resource`, así que la conexión al archivo queda
+abierta mientras el proceso viva. Si Streamlit actualiza el código sin levantar
+el contenedor de cero, ambas cosas siguen apuntando al archivo anterior.
+
 ---
 
 # Decisiones técnicas
@@ -577,3 +590,4 @@ del repo público y la rotación de credenciales.
 | 2026-10-02 | Las cinco preguntas del equipo como ejemplos (luego cuatro) | Son las que hacen de verdad; la de "crecimiento inferior" partía de una premisa falsa en el MAT | `app.py` | Vigente |
 | 2026-10-02 | Pérdidas en positivo + etiquetas que no se cortan | Eje de −600 a −100 y rótulo cortado en la barra más importante | `contexto.py` | Vigente |
 | 2026-10-06 | Recarga al corte 2026-08 | Llegaron los datos de agosto | `data/iqvia.duckdb`, `preguntas.yaml` | Vigente |
+| 2026-10-06 | El redeploy del `.duckdb` exige reboot manual en Streamlit | El push fue correcto pero la app siguió sirviendo el corte viejo | documentación | Vigente |

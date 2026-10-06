@@ -44,6 +44,12 @@ primero a `data/iqvia.duckdb.nuevo` y reemplaza el archivo bueno recién al
 final, con la integridad ya verificada. **Si la corrida falla, el `.duckdb`
 anterior queda intacto**: podés seguir usándolo mientras resolvés el problema.
 
+Después de subir el `.duckdb` nuevo a GitHub, **entrá a share.streamlit.io y
+hacé Manage app → Reboot app**. El redeploy automático no siempre alcanza para
+un binario de 43 MB: la app puede seguir sirviendo el corte anterior. Se
+confirma mirando la barra lateral, que tiene que mostrar la fecha nueva en
+"Datos hasta".
+
 Opciones útiles:
 
 ```bash
