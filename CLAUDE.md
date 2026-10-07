@@ -370,7 +370,9 @@ Las 3 fallas de la primera pasada tampoco eran del bot:
 - ⚠️ **Credenciales expuestas en el chat de desarrollo:** contraseña de SQL
   Server y `ANTHROPIC_API_KEY`. **Ambas deberían rotarse.** Sin confirmar que se
   haya hecho.
-- La app de Streamlit también es pública (cualquiera con el link gasta crédito).
+- La app de Streamlit acepta `APP_PASSWORD` desde el 2026-10-06. **Protege el
+  gasto de API, no los datos**: el `.duckdb` sigue siendo descargable del repo
+  público, que es un problema aparte y se resuelve poniendo el repo en privado.
 - `SQLAlchemy` está en `requirements.txt` pero **no se importa en ningún
   archivo** — el exportador usa `pyodbc` directo. Dependencia muerta.
 - Dependencias sin fijar (`>=`): riesgo de romperse solo.
@@ -455,6 +457,14 @@ Archivo `.env` en la raíz (gitignored). Plantilla en
 | `SQLSERVER_USER` | Usuario ODBC | Máquina de trabajo |
 | `SQLSERVER_PASSWORD` | Contraseña | Máquina de trabajo |
 | `ANTHROPIC_API_KEY` | Acceso a la API de Claude | Chatbot |
+| `APP_PASSWORD` | Clave de acceso a la app (opcional) | Chatbot |
+
+**`APP_PASSWORD`**: si está definida, la app pide esa clave antes de abrir la
+base o crear el `Agente` — quien no pasa de ahí no consume memoria ni crédito.
+Si **no** está definida la app queda abierta, igual que antes, pero mostrando
+un aviso en la barra lateral para que nunca sea un descuido silencioso. La
+comparación usa `hmac.compare_digest` (tiempo constante). En Streamlit Cloud va
+en *Settings → Secrets*.
 
 **En Streamlit Cloud** la API key va en el panel de **Secrets** (formato TOML).
 Streamlit la expone también como variable de entorno, por eso `os.getenv()`
@@ -591,3 +601,4 @@ del repo público y la rotación de credenciales.
 | 2026-10-02 | Pérdidas en positivo + etiquetas que no se cortan | Eje de −600 a −100 y rótulo cortado en la barra más importante | `contexto.py` | Vigente |
 | 2026-10-06 | Recarga al corte 2026-08 | Llegaron los datos de agosto | `data/iqvia.duckdb`, `preguntas.yaml` | Vigente |
 | 2026-10-06 | El redeploy del `.duckdb` exige reboot manual en Streamlit | El push fue correcto pero la app siguió sirviendo el corte viejo | documentación | Vigente |
+| 2026-10-06 | Clave de acceso opcional (`APP_PASSWORD`) | La app pública dejaba que cualquiera gastara crédito | `app.py`, `.env.example` | Vigente |

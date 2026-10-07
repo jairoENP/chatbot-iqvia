@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+import hmac
+import os
 import sys
 import time
 from pathlib import Path
@@ -69,6 +71,54 @@ def dibujar_costo(costo: float, llamadas: int, segundos: float) -> None:
     )
 
 
+def clave_configurada() -> str | None:
+    """La clave de acceso, si hay alguna definida.
+
+    Se busca primero en los Secrets de Streamlit Cloud y despues en una
+    variable de entorno, para que ande igual corriendo local. Si no hay
+    ninguna, la app queda abierta -- el mismo comportamiento de antes -- pero
+    avisandolo en pantalla, para que nunca pase inadvertido.
+    """
+    try:
+        if "APP_PASSWORD" in st.secrets:
+            return str(st.secrets["APP_PASSWORD"])
+    except Exception:  # noqa: BLE001 - sin secrets.toml, st.secrets puede fallar
+        pass
+    return os.getenv("APP_PASSWORD")
+
+
+def exigir_clave() -> None:
+    """Corta la ejecucion hasta que el usuario escriba la clave correcta.
+
+    Va ANTES de abrir la base y de crear el Agente: quien no pasa de aca no
+    consume ni memoria ni creditos de la API.
+    """
+    clave = clave_configurada()
+    if not clave:
+        st.sidebar.warning(
+            "Sin clave: cualquiera con el enlace puede usar la app y gastar "
+            "credito. Defini `APP_PASSWORD` en los Secrets de Streamlit."
+        )
+        return
+
+    if st.session_state.get("acceso_ok"):
+        return
+
+    st.title("🎯 Sniper IA")
+    st.caption("Acceso restringido al equipo comercial de Abbott Bolivia.")
+    with st.form("acceso"):
+        intento = st.text_input("Clave de acceso", type="password")
+        if st.form_submit_button("Entrar"):
+            # compare_digest en vez de == : compara en tiempo constante, asi el
+            # tiempo de respuesta no filtra cuantos caracteres acerto.
+            if hmac.compare_digest(intento, clave):
+                st.session_state.acceso_ok = True
+                st.rerun()
+            else:
+                st.error("Clave incorrecta.")
+    st.stop()
+
+
 @st.cache_resource(show_spinner="Abriendo la base...")
 def abrir_base():
     """Conexion COMPARTIDA a la base, de solo lectura.
@@ -95,6 +145,8 @@ def obtener_agente() -> Agente:
 
 
 # ---------------------------------------------------------------------------
+exigir_clave()
+
 if not RUTA_DB_POR_DEFECTO.exists():
     st.error(
         f"No encuentro la base en `{RUTA_DB_POR_DEFECTO}`.\n\n"
