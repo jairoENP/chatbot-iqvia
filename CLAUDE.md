@@ -1,4 +1,4 @@
-# CLAUDE.md — Sniper IA
+# CLAUDE.md — Sniper
 
 Memoria operativa del proyecto. Leer antes de proponer cambios.
 
@@ -160,6 +160,18 @@ Todas están escritas en `contexto.py`; acá el porqué:
    siempre (ACERDIL D: EI 105,6 vs su sub-mercado, 97,2 vs su molécula).
 10. **Solo datos reales.** `ES_PROYECCION = 1` queda fuera. IQVIA entrega con
     atraso: el último mes disponible no es el mes actual.
+11. **La moneda por defecto es BOB, no USD** (decisión del usuario,
+    2026-11-04). El tipo de cambio implícito (`SUM(BOLIVIANOS)/SUM(DOLARES)`)
+    estuvo clavado en ~6,91 durante 58 meses y saltó a **8,18 en 2026-07 y a
+    11,75 en 2026-08**. Desde ahí el crecimiento en USD mezcla venta con
+    devaluación: el mercado del QTR daba **−15,0% en USD, +6,0% en BOB y +0,6%
+    en unidades**. La "caída" era el tipo de cambio. Share y EI casi no cambian
+    con la moneda —dentro de un mes el tipo es idéntico para todas las
+    corporaciones, verificado— así que las conclusiones de Abbott contra el
+    mercado se sostienen; lo que se da vuelta es el crecimiento absoluto. USD
+    solo si lo piden, y con aviso. Ojo con el reverso: el crecimiento en BOB
+    incluye la suba de precios, por eso la regla pide contrastarlo con unidades.
+    `PRECIOS` está en USD y desde 2026-07 muestra caídas que son solo cambiarias.
 
 ## Cambios de esquema y ciclo de recarga
 
@@ -330,6 +342,7 @@ el contenedor de cero, ambas cosas siguen apuntando al archivo anterior.
 | Un `FALLA` falso: se esperaba "106" y el bot redondeó a "107,0 M" | El caso acepta ambos; lo que discrimina es el orden de magnitud |
 | Los ejemplos de la barra lateral eran texto muerto y escondían las capacidades | Botones clickeables, etiqueta corta + pregunta completa |
 | Gráfico de pérdidas con eje negativo y la etiqueta de la barra más larga cortada | Regla: magnitudes en positivo, `textposition='inside'` |
+| El crecimiento en USD mostraba caídas que eran devaluación (mercado QTR −15,0% en USD, +6,0% en BOB) | Moneda por defecto BOB; USD solo a pedido y con aviso |
 
 **Descartado:** RAG (los datos son estructurados, SQL es la herramienta
 correcta); memory tool autónomo (las reglas deben pasar por revisión humana);
@@ -362,6 +375,10 @@ Las 3 fallas de la primera pasada tampoco eran del bot:
 - `clase_terapeutica` — ver la pregunta de negocio abierta más abajo.
 
 **Pendiente / riesgos:**
+- La regla de moneda BOB (2026-11-04) se validó contra la API el 2026-11-05:
+  `crecimiento_qtr_yoy`, `metrica_dolares`, `precio_promedio` y
+  `tendencia_abbott` dan OK y las respuestas se leyeron a mano. Los otros 18
+  casos no se volvieron a correr con la regla nueva: falta la corrida completa.
 - ⚠️ **El repo es público y contiene `data/iqvia.duckdb`** con 2,86M filas de
   datos licenciados de IQVIA, descargables por cualquiera. Se hizo público
   porque Streamlit no veía el repo privado; el permiso correcto está en
@@ -481,10 +498,11 @@ acentos y separadores de miles. Un `FALLA` siempre merece atención; un `OK`
 automático no garantiza que la respuesta sea buena.
 
 **Casos críticos que no deben romperse** (valores al corte 2026-08):
-- `precio_promedio` — trampa del precio ponderado (26,05)
+- `precio_promedio` — trampa del precio ponderado (BOB 199,54)
 - `conteo_presentaciones` — trampa de la grilla densa (119, no 944)
-- `crecimiento_qtr_yoy` — YoY (-15,0%), no QoQ (-21,5%)
-- `evolution_index` / `evolution_index_contexto_cambia` — 109,4 vs 105,7
+- `crecimiento_qtr_yoy` — YoY en BOB (+6,0%), no QoQ (−2,2%) ni USD (−15,0%)
+- `metrica_dolares` — pedir USD da USD 15,3 M **y** avisa la devaluación
+- `evolution_index` / `evolution_index_contexto_cambia` — 109,7 vs 106,2 (BOB)
 - `fuera_de_rango` / `molecula_inexistente` — debe decir que no tiene el dato
 - `mercado_es_submercado` — "mercado" = SUB_MERCADO
 - `clase_terapeutica` — default `CLASE4` (LECHES PARA NINOS), no `CLASE1`
@@ -598,3 +616,5 @@ del repo público y la rotación de credenciales.
 | 2026-10-06 | El redeploy del `.duckdb` exige reboot manual en Streamlit | El push fue correcto pero la app siguió sirviendo el corte viejo | documentación | Vigente |
 | 2026-10-06 | Clave de acceso opcional (`APP_PASSWORD`) | La app pública dejaba que cualquiera gastara crédito | `app.py`, `.env.example` | **Revertida 2026-10-20** |
 | 2026-10-20 | Se quita la clave de acceso | Decisión del usuario; nunca llegó a activarse en Secrets | `app.py`, `.env.example` | Vigente |
+| 2026-11-04 | Moneda por defecto BOB en vez de USD | El tipo de cambio pasó de 6,91 a 11,75 en dos meses y el crecimiento en USD mostraba caídas que no ocurrieron | `contexto.py`, `tools.py`, `preguntas.yaml` | Vigente, 4 casos validados |
+| 2026-11-05 | Rename a "Sniper" (sin "IA") + logo y slogan "Preguntá. Entendé. Decidí." | Decisión del usuario | `app.py`, `chatbot/assets/`, `README.md` | Vigente |
