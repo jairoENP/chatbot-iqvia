@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import base64
 import sys
 import time
 from pathlib import Path
@@ -36,7 +37,13 @@ EJEMPLOS = [
      "Dame el ranking por corporación y el detalle."),
 ]
 
-st.set_page_config(page_title="Sniper IA", page_icon="🎯", layout="wide")
+RUTA_ASSETS = Path(__file__).resolve().parent / "assets"
+
+st.set_page_config(
+    page_title="Sniper",
+    page_icon=str(RUTA_ASSETS / "sniper_icono.png"),
+    layout="wide",
+)
 
 
 def dibujar_paso(paso: Paso) -> None:
@@ -56,6 +63,30 @@ def dibujar_paso(paso: Paso) -> None:
         else:
             st.caption(paso.entrada)
         st.text(paso.salida[:3000])
+
+
+def dibujar_marca() -> None:
+    """Logo, nombre y slogan arriba de la barra lateral.
+
+    El logo trae su propio fondo oscuro, asi que se ve igual con el tema claro
+    y con el oscuro. El nombre y el slogan van como texto, no dentro de la
+    imagen: asi heredan el color del tema. Si fueran parte del SVG quedarian
+    con un color fijo y uno de los dos temas los volveria ilegibles.
+
+    El SVG va como <img> con data URI y no incrustado: st.html sanea el HTML y
+    descarta las etiquetas <svg>, asi que el logo desaparecia sin ningun error.
+    """
+    logo = base64.b64encode((RUTA_ASSETS / "sniper_logo.svg").read_bytes()).decode()
+    st.html(
+        '<div style="display:flex;align-items:center;gap:0.75rem">'
+        f'<img src="data:image/svg+xml;base64,{logo}" width="52" height="52" alt="" '
+        'style="flex:none;display:block">'
+        "<div>"
+        '<div style="font-size:1.75rem;font-weight:700;line-height:1.1">Sniper</div>'
+        '<div style="font-size:0.85rem;opacity:0.7;letter-spacing:0.02em">'
+        "Preguntá. Entendé. Decidí.</div>"
+        "</div></div>"
+    )
 
 
 def dibujar_costo(costo: float, llamadas: int, segundos: float) -> None:
@@ -113,7 +144,7 @@ st.session_state.setdefault("historial", [])
 
 # -- barra lateral ----------------------------------------------------------
 with st.sidebar:
-    st.title("🎯 Sniper IA")
+    dibujar_marca()
     meta = agente.meta
     st.metric("Datos hasta", meta["FECHA_CORTE"].strftime("%Y-%m-%d"))
     st.caption(
@@ -146,6 +177,8 @@ with st.sidebar:
     for indice, (etiqueta, pregunta_ejemplo) in enumerate(EJEMPLOS):
         if st.button(etiqueta, key=f"ejemplo-{indice}", use_container_width=True):
             st.session_state.pregunta_pendiente = pregunta_ejemplo
+    st.divider()
+    st.caption("Hecho con ❤️ por Jairo Vera")
 
 # -- historial --------------------------------------------------------------
 # st.plotly_chart deriva su id del contenido del grafico, asi que dos figuras
