@@ -124,13 +124,13 @@ class Sesion:
             f"""
             SELECT {columna} AS VALOR,
                    COUNT(DISTINCT COD_PRODUCTO) AS PRESENTACIONES,
-                   ROUND(SUM(DOLARES), 0)       AS DOLARES_TOTAL
+                   ROUND(SUM(BOLIVIANOS), 0)    AS BOB_TOTAL
             FROM vw_ventas
             WHERE {columna} IS NOT NULL
               AND (upper({columna}) LIKE '%' || upper(?) || '%'
                    OR damerau_levenshtein(upper({columna}), upper(?)) <= 2)
             GROUP BY {columna}
-            ORDER BY DOLARES_TOTAL DESC
+            ORDER BY BOB_TOTAL DESC
             LIMIT ?
             """,  # noqa: S608 - columna validada contra COLUMNAS_BUSCABLES
             [termino, termino, limite],
@@ -146,10 +146,10 @@ class Sesion:
                     f"""
                     SELECT {columna} AS VALOR,
                            COUNT(DISTINCT COD_PRODUCTO) AS PRESENTACIONES,
-                           ROUND(SUM(DOLARES), 0)       AS DOLARES_TOTAL
+                           ROUND(SUM(BOLIVIANOS), 0)    AS BOB_TOTAL
                     FROM vw_ventas
                     WHERE {columna} IS NOT NULL AND ({condicion})
-                    GROUP BY {columna} ORDER BY DOLARES_TOTAL DESC LIMIT ?
+                    GROUP BY {columna} ORDER BY BOB_TOTAL DESC LIMIT ?
                     """,  # noqa: S608
                     [*palabras, limite],
                 ).df()

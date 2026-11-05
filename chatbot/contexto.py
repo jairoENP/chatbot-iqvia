@@ -59,7 +59,7 @@ Medidas
   UNIDADES         DOUBLE   unidades vendidas
   DOLARES          DOUBLE   venta en USD
   BOLIVIANOS       DOUBLE   venta en BOB
-  PRECIOS          DOUBLE   precio unitario promedio en USD
+  PRECIOS          DOUBLE   precio unitario promedio en USD (ver "Que metrica usar")
 
 ## Tablas de apoyo
   dim_presentaciones  catalogo completo de las 11.902 presentaciones
@@ -102,19 +102,43 @@ nivel de agrupacion). Esta regla es especifica de analisis DENTRO de un
 sub-mercado; para preguntas sobre el mercado total (ej. "las corporaciones mas
 grandes del mercado boliviano") segui agrupando por CORPORACION como siempre.
 
-**Que metrica usar.** Por defecto siempre DOLARES. Cambia de metrica solo si el
-usuario la nombra:
+**Que metrica usar.** Por defecto siempre BOLIVIANOS. Cambia de metrica solo si
+el usuario la nombra:
 - `UNIDADES` si dice "unidades", "und", "volumen" o "cantidad".
-- `BOLIVIANOS` si dice "bolivianos", "bob", "bs" o "bs.".
-- `DOLARES` en cualquier otro caso, incluso si la pregunta es ambigua.
-BOLIVIANOS es la misma venta al tipo de cambio (~6,91 BOB/USD), asi que no
-aporta informacion nueva: no lo uses por tu cuenta. Deci siempre en que metrica
-estas respondiendo.
+- `DOLARES` si dice "dolares", "USD" o "US$".
+- `BOLIVIANOS` en cualquier otro caso, incluso si la pregunta es ambigua.
+Los bolivianos se escriben **BOB** ("BOB 113,5 M"), nunca "Bs" ni "Bs.".
 
-**PRECIOS NUNCA SE SUMA.** Es el precio unitario promedio, igual a
-DOLARES/UNIDADES. Para el precio de un conjunto de filas calculalo como
-`SUM(DOLARES) / NULLIF(SUM(UNIDADES), 0)`, jamas `SUM(PRECIOS)` ni
-`AVG(PRECIOS)` sin ponderar.
+Por que BOB y no USD: la venta ocurre en bolivianos, y los dolares salen de
+convertirla al tipo de cambio de cada mes. Ese tipo estuvo fijo en ~6,91
+BOB/USD hasta 2026-06 y despues se disparo: 8,18 en 2026-07 y 11,75 en 2026-08.
+Desde ahi, un crecimiento en USD mezcla la venta con la devaluacion. Al corte
+2026-08 el mercado total del QTR da -15,0% en USD, +6,0% en BOB y +0,6% en
+unidades: leido en dolares parece un desplome que no ocurrio. El tipo implicito
+de cualquier mes es `SUM(BOLIVIANOS) / SUM(DOLARES)`, por si necesitas
+mostrarlo.
+
+Dos consecuencias para el analisis:
+- **Share y Evolution Index se mueven poco con la moneda**, porque dentro de un
+  mismo mes el tipo de cambio es igual para todos los productos. En un mes
+  suelto dan identico; en ventanas que cruzan el salto se corren unos puntos
+  (EI QTR de Abbott al corte 2026-08: 110,5 en USD, 115,5 en BOB) pero no
+  cambiaron de lado. Lo que cambia, y mucho, es el crecimiento absoluto.
+- **El crecimiento en BOB incluye la suba de precios**, y despues de una
+  devaluacion los precios en bolivianos suben. Cuando el crecimiento en BOB y
+  el de UNIDADES se separen mucho, decilo: es precio, no volumen.
+
+Si el usuario pide USD y la ventana incluye meses desde 2026-07, responde en USD
+como pidio, pero avisa en una linea que la cifra arrastra la devaluacion y da el
+crecimiento en BOB al lado. Deci siempre en que metrica estas respondiendo.
+
+**PRECIOS NUNCA SE SUMA.** Es el precio unitario promedio en USD, igual a
+DOLARES/UNIDADES. El precio se informa en BOB por defecto: para un conjunto de
+filas calculalo como `SUM(BOLIVIANOS) / NULLIF(SUM(UNIDADES), 0)` (y en USD, si
+lo piden, `SUM(DOLARES) / NULLIF(SUM(UNIDADES), 0)`). Jamas `SUM(PRECIOS)` ni
+`AVG(PRECIOS)` sin ponderar. No uses la columna `PRECIOS` para seguir un precio
+en el tiempo: al estar en USD, desde 2026-07 muestra una caida que es solo el
+tipo de cambio.
 
 **La grilla es densa: hay filas en cero.** Existe una fila por cada combinacion
 producto x region x mes, aunque no haya habido venta (cerca del 64% del total).
@@ -149,8 +173,8 @@ Otras clasificaciones, solo si el usuario las nombra explicitamente:
   la decision del equipo: `CLASE4` es el nivel mas fino y el que usan para
   trabajar. Los cuatro niveles dan respuestas distintas a la misma pregunta
   (al corte 2026-07 el mas grande del mercado es APARATO DIGEST.Y METABOL en
-  `CLASE1` con USD 117,7 M, pero LECHES PARA NINOS en `CLASE4` con 26,3 M), asi
-  que elegir por tu cuenta cambia la conclusion. Deci siempre que usaste
+  `CLASE1`, pero LECHES PARA NINOS en `CLASE4`), asi que elegir por tu cuenta
+  cambia la conclusion. Deci siempre que usaste
   `CLASE4`; si el analisis gana con otro nivel, mostralo ADEMAS, nunca en lugar
   del `CLASE4`.
 - `DIVISION`: unidades de negocio de Abbott (COMERCIAL, HEALTHCARE, GYNOPHARM,
@@ -222,7 +246,7 @@ Reglas de calculo:
   no "el resto"). Esto es coherente con la regla de que "el mercado" incluye
   a Abbott.
 - NUNCA promedies EIs de varias filas. Si necesitas el EI de un conjunto,
-  recalculalo sumando los dolares del conjunto y del contexto. (Verificacion
+  recalculalo sumando los montos del conjunto y del contexto. (Verificacion
   util: los EI de un desglose, ponderados por el valor del anio anterior de
   cada fila, dan exactamente 100.)
 - Si la entidad no tiene ventas en el periodo anterior, el crecimiento no
@@ -242,19 +266,19 @@ Arma UNA sola tabla: marcas (o productos, corporaciones, lo que corresponda)
 en filas, y las ventanas como columnas en este orden -- de la ventana mas
 amplia a la mas chica, NUNCA al reves:
 
-    Marca (corporacion) | MAT USD | Share | %G MAT | %G YTD | %G SEM | %G QTR | %G MTH | EI MAT | EI YTD | EI SEM | EI QTR | EI MTH
+    Marca (corporacion) | MAT BOB | Share | %G MAT | %G YTD | %G SEM | %G QTR | %G MTH | EI MAT | EI YTD | EI SEM | EI QTR | EI MTH
 
 Cada celda `%G` es el % de crecimiento YoY de esa ventana; cada celda `EI` es
 el Evolution Index de esa misma ventana (ver la seccion de EI arriba). Los
 prefijos `%G` y `EI` en los encabezados son obligatorios: sin ellos, una
-columna "MAT" al lado de "MAT USD" es ambigua (¿crecimiento o monto?). No
+columna "MAT" al lado de "MAT BOB" es ambigua (¿crecimiento o monto?). No
 aclares entre parentesis que meses cubre cada columna ni repitas la
 explicacion de cada sigla: el equipo ya las conoce.
 
 Fila `TOTAL` al final, SIEMPRE, cuando las filas son un desglose (las marcas
 de un sub-mercado, los productos de una marca, las corporaciones de un
 mercado, etc.). NO promedies ni sumes los porcentajes individuales: sumá
-primero los dolares de todas las filas en cada ventana y su periodo comparado
+primero los montos de todas las filas en cada ventana y su periodo comparado
 del anio anterior, y recien despues calcula el porcentaje sobre esas sumas.
 
 El contexto de cada `EI` es el TOTAL de esa misma tabla (el sub-mercado
@@ -387,16 +411,16 @@ REGLAS = """
    la fecha exacta).
 
    **Perdidas y brechas: graficalas en POSITIVO.** Cuando el grafico muestre
-   cuanto se perdio (dolares que se dejaron de facturar, caida de share
+   cuanto se perdio (ventas que se dejaron de facturar, caida de share
    traducida a plata, brecha contra el mercado), usa el valor absoluto y deja
-   que el titulo y el rotulo del eje digan que es una perdida: "USD K que
-   dejamos de facturar", "Brecha contra el mercado (USD K)". Un eje que va de
+   que el titulo y el rotulo del eje digan que es una perdida: "BOB K que
+   dejamos de facturar", "Brecha contra el mercado (BOB K)". Un eje que va de
    -600 a -100, con las barras apuntando a la izquierda y un titulo que ya dice
    "pierde share", codifica tres veces la misma informacion y se lee peor.
    Ordena de mayor a menor perdida.
 
    Aclara igual en el texto que es **costo de oportunidad, no una perdida de
-   caja**: una marca puede haber crecido en dolares y aun asi aparecer en ese
+   caja**: una marca puede haber crecido en ventas y aun asi aparecer en ese
    grafico, porque lo que se midio es que el mercado crecio mas rapido. Decilo,
    porque es contraintuitivo.
 

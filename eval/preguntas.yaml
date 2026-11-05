@@ -27,6 +27,12 @@
 # `python eval/run_eval.py --recalcular` imprime los valores nuevos sin gastar
 # API.
 #
+# LA METRICA POR DEFECTO ES BOLIVIANOS, no DOLARES (desde 2026-11-04). El tipo
+# de cambio implicito de IQVIA paso de ~6,91 a 8,18 en 2026-07 y a 11,75 en
+# 2026-08, y cualquier crecimiento en USD que cruce esos meses mezcla la venta
+# con la devaluacion. Las verificaciones suman BOLIVIANOS salvo el caso que
+# prueba justamente el pedido explicito en dolares.
+#
 # En el texto de las preguntas, run_eval.py reemplaza estos marcadores:
 #   {ultimo_mes}  el mes de corte en palabras ("julio de 2026")
 #   {mes_futuro}  un mes posterior a los datos, para el caso fuera de rango
@@ -48,7 +54,7 @@
   verificacion: |
     -- Si se responde "solo la molecula pura", el lider del MAT es:
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
-    SELECT MARCA, CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
+    SELECT MARCA, CORPORACION, ROUND(SUM(BOLIVIANOS),0) AS BOLIVIANOS
     FROM vw_ventas, p
     WHERE MOLECULA = 'PARACETAMOL' AND FECHA > p.corte - INTERVAL 12 MONTH
     GROUP BY 1,2 ORDER BY 3 DESC LIMIT 3
@@ -72,7 +78,7 @@
     -- Los dos sub-mercados que justifican la contrapregunta, y el ranking de
     -- competidores de cada uno por si el usuario elige.
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
-    SELECT SUB_MERCADO, CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
+    SELECT SUB_MERCADO, CORPORACION, ROUND(SUM(BOLIVIANOS),0) AS BOLIVIANOS
     FROM vw_ventas, p
     WHERE SUB_MERCADO LIKE 'ENSURE%' AND NOT ES_ABBOTT
       AND FECHA > p.corte - INTERVAL 12 MONTH
@@ -81,10 +87,11 @@
 - id: share_abbott_total
   pregunta: Que participacion de mercado tiene Abbott en el total del mercado?
   prueba: Share global. Verifica que no confunda el universo total con el seguido.
-  debe_contener: ["2,8"]   # valor atado al corte: 2,82%
+  debe_contener: ["2,86", "2,9"]   # valor atado al corte: 2,86% en BOB
+  modo_contener: cualquiera
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
-    SELECT ROUND(100.0*SUM(CASE WHEN ES_ABBOTT THEN DOLARES END)/SUM(DOLARES),2) AS SHARE_PCT
+    SELECT ROUND(100.0*SUM(CASE WHEN ES_ABBOTT THEN BOLIVIANOS END)/SUM(BOLIVIANOS),2) AS SHARE_PCT
     FROM vw_ventas, p WHERE FECHA > p.corte - INTERVAL 12 MONTH
 
 - id: lideres_mercado
@@ -95,7 +102,7 @@
   debe_contener: [INTI, BAGO]
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
-    SELECT CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
+    SELECT CORPORACION, ROUND(SUM(BOLIVIANOS),0) AS BOLIVIANOS
     FROM vw_ventas, p WHERE FECHA > p.corte - INTERVAL 12 MONTH
     GROUP BY 1 ORDER BY 2 DESC LIMIT 3
 
@@ -105,7 +112,7 @@
   debe_contener: [SANTA CRUZ]
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
-    SELECT REGION, ROUND(SUM(DOLARES),0) AS DOLARES
+    SELECT REGION, ROUND(SUM(BOLIVIANOS),0) AS BOLIVIANOS
     FROM vw_ventas, p WHERE ES_ABBOTT AND FECHA > p.corte - INTERVAL 12 MONTH
     GROUP BY 1 ORDER BY 2 DESC
 
@@ -114,53 +121,59 @@
   prueba: >-
     Debe usar Python, no solo SQL, comparando el MAT contra el MAT del anio
     anterior. Deberia acompanar con un grafico.
-  debe_contener: ["16"]   # valor atado al corte: +16,4%
+  debe_contener: ["24,8", "25"]   # valor atado al corte: +24,8% en BOB (+16,4% en USD)
+  modo_contener: cualquiera
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT ROUND(100.0*(
-             SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END)
+             SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END)
            / SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
-                       AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) - 1),1) AS YOY_PCT
+                       AND FECHA <= p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) - 1),1) AS YOY_PCT
     FROM vw_ventas, p WHERE ES_ABBOTT
 
 - id: precio_promedio
   pregunta: Cual es el precio unitario promedio de Ensure?
   prueba: >-
     TRAMPA. PRECIOS es precio unitario: sumarlo o promediarlo sin ponderar da
-    cualquier cosa. La respuesta correcta es SUM(DOLARES)/SUM(UNIDADES).
-    Ademas MARCA requiere el valor limpio.
-  debe_contener: ["26"]   # valor atado al corte: 26,05
+    cualquier cosa. La respuesta correcta es SUM(BOLIVIANOS)/SUM(UNIDADES):
+    el precio tambien se informa en BOB por defecto. La columna PRECIOS esta
+    en USD, asi que usarla directo da la moneda equivocada ademas del error de
+    ponderacion. Ademas MARCA requiere el valor limpio.
+  debe_contener: ["199", "200"]   # valor atado al corte: BOB 199,54
+  modo_contener: cualquiera
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
-    SELECT ROUND(SUM(DOLARES)/NULLIF(SUM(UNIDADES),0),2) AS PRECIO_PONDERADO
+    SELECT ROUND(SUM(BOLIVIANOS)/NULLIF(SUM(UNIDADES),0),2) AS PRECIO_PONDERADO
     FROM vw_ventas, p
     WHERE MARCA = 'ENSURE' AND FECHA > p.corte - INTERVAL 12 MONTH AND UNIDADES > 0
 
-- id: metrica_bolivianos
-  pregunta: Cuanto vendio Abbott en Bs el ultimo ano?
+- id: metrica_dolares
+  pregunta: Cuanto vendio Abbott en dolares el ultimo ano?
   prueba: >-
-    "Bs" debe activar BOLIVIANOS en lugar del DOLARES por defecto. Si contesta
-    la cifra en dolares (un orden de magnitud menor) ignoro la unidad pedida.
-  # Acepta 106 o 107: la verdad es 106.950.945 Bs y el bot redondea a "107,0 M",
-  # que es lo correcto. Lo que de verdad discrimina este caso es el orden de
-  # magnitud -- ~107 millones en Bs contra ~15 millones en USD -- no el digito.
-  debe_contener: ["113", "114"]   # valor atado al corte: 113.502.392 Bs
-  modo_contener: cualquiera
+    "dolares" debe activar DOLARES en lugar de BOLIVIANOS, que es el default. Y
+    como el MAT incluye 2026-07 y 2026-08, los meses de la devaluacion, la
+    regla manda responder en USD como se pidio pero avisar que la cifra arrastra
+    el tipo de cambio. Si contesta ~113 millones, ignoro la unidad pedida; si
+    da los 15,3 M sin mencionar la devaluacion, se salto el aviso.
+  # Antes este caso era "en Bs", cuando el default era USD. Con el default en
+  # BOB ese caso ya no probaba nada y se invirtio. "devalu" cubre devaluacion,
+  # devaluo, devaluado: no exige una frase exacta.
+  debe_contener: ["15,3", "devalu"]   # valor atado al corte: USD 15.330.209
   no_debe_contener: []
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
-    SELECT ROUND(SUM(BOLIVIANOS),0) AS BOLIVIANOS, ROUND(SUM(DOLARES),0) AS DOLARES_NO_ES_ESTO
+    SELECT ROUND(SUM(DOLARES),0) AS DOLARES, ROUND(SUM(BOLIVIANOS),0) AS BOLIVIANOS_NO_ES_ESTO
     FROM vw_ventas, p WHERE ES_ABBOTT AND FECHA > p.corte - INTERVAL 12 MONTH
 
 - id: metrica_unidades
   pregunta: Cuantas unidades vendio Ensure el ultimo ano?
   prueba: >-
-    "unidades" debe activar UNIDADES. Si responde con la cifra en dolares tomo
+    "unidades" debe activar UNIDADES. Si responde con la cifra en bolivianos tomo
     la metrica por defecto en vez de la pedida.
   debe_contener: ["22"]   # valor atado al corte: 22.649 unidades
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
-    SELECT ROUND(SUM(UNIDADES),0) AS UNIDADES, ROUND(SUM(DOLARES),0) AS DOLARES_NO_ES_ESTO
+    SELECT ROUND(SUM(UNIDADES),0) AS UNIDADES, ROUND(SUM(BOLIVIANOS),0) AS BOLIVIANOS_NO_ES_ESTO
     FROM vw_ventas, p WHERE MARCA = 'ENSURE' AND FECHA > p.corte - INTERVAL 12 MONTH
 
 - id: crecimiento_qtr_yoy
@@ -169,29 +182,32 @@
     Dos reglas fijas a la vez: "el mercado" sin nombrar uno especifico es el
     universo completo (no SUB_MERCADO), y "crecimiento" siempre compara contra
     el mismo QTR del anio anterior (YoY), nunca contra el trimestre inmediato
-    anterior (QoQ). El QTR son los 3 ultimos meses del corte.
-  debe_contener: ["15,0", "15.0"]   # valor atado al corte: -15,0% YoY
+    anterior (QoQ). El QTR son los 3 ultimos meses del corte. Desde 2026-11
+    prueba tambien la moneda: en BOB el mercado crece +6,0%, en USD da -15,0%
+    por la devaluacion. Si el titular es la caida, contesto en dolares.
+    No se prohibe el -15,0%: mencionarlo como contraste es correcto.
+  debe_contener: ["6,0%", "6.0%", "6,0 %"]   # valor atado al corte: +6,0% YoY en BOB
   modo_contener: cualquiera
   # Los valores prohibidos llevan el % pegado a proposito: la revision busca
   # subcadenas sueltas, asi que un numero pelado tambien matchea dentro de otra
   # cifra (un "1,4" aparece dentro de "71,4 M") y marcaba FALLA una respuesta
   # correcta. El QoQ que hay que detectar siempre se escribe como porcentaje.
-  no_debe_contener: ["21,5%", "21.5%"]   # valor atado al corte: el QoQ, -21,5%
+  no_debe_contener: ["-2,2%", "-2.2%"]   # valor atado al corte: el QoQ en BOB, -2,2%
   verificacion: |
     -- Actual = ultimos 3 meses; comparado = los mismos 3 meses del anio pasado.
     -- La ultima columna es el QoQ (contra el trimestre inmediato anterior), que
     -- es la respuesta INCORRECTA que el bot no debe dar.
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT
-      ROUND(SUM(CASE WHEN FECHA > p.corte - INTERVAL 3 MONTH THEN DOLARES END),0) AS QTR_ACTUAL,
+      ROUND(SUM(CASE WHEN FECHA > p.corte - INTERVAL 3 MONTH THEN BOLIVIANOS END),0) AS QTR_ACTUAL,
       ROUND(SUM(CASE WHEN FECHA > p.corte - INTERVAL 15 MONTH
-                      AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END),0) AS QTR_ANIO_PASADO,
-      ROUND(100.0*(SUM(CASE WHEN FECHA > p.corte - INTERVAL 3 MONTH THEN DOLARES END)
+                      AND FECHA <= p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END),0) AS QTR_ANIO_PASADO,
+      ROUND(100.0*(SUM(CASE WHEN FECHA > p.corte - INTERVAL 3 MONTH THEN BOLIVIANOS END)
            / SUM(CASE WHEN FECHA > p.corte - INTERVAL 15 MONTH
-                       AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) - 1),1) AS CRECIMIENTO_YOY_PCT,
-      ROUND(100.0*(SUM(CASE WHEN FECHA > p.corte - INTERVAL 3 MONTH THEN DOLARES END)
+                       AND FECHA <= p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) - 1),1) AS CRECIMIENTO_YOY_PCT,
+      ROUND(100.0*(SUM(CASE WHEN FECHA > p.corte - INTERVAL 3 MONTH THEN BOLIVIANOS END)
            / SUM(CASE WHEN FECHA > p.corte - INTERVAL 6 MONTH
-                       AND FECHA <= p.corte - INTERVAL 3 MONTH THEN DOLARES END) - 1),1) AS QOQ_INCORRECTO
+                       AND FECHA <= p.corte - INTERVAL 3 MONTH THEN BOLIVIANOS END) - 1),1) AS QOQ_INCORRECTO
     FROM vw_ventas, p
 
 - id: tabla_crecimientos_multiventana
@@ -222,20 +238,20 @@
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta),
     v AS (
       SELECT
-        SUM(CASE WHEN FECHA = p.corte THEN DOLARES END) AS MTH,
-        SUM(CASE WHEN FECHA = p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS MTH_PY,
-        SUM(CASE WHEN FECHA > p.corte - INTERVAL 3 MONTH THEN DOLARES END) AS QTR,
+        SUM(CASE WHEN FECHA = p.corte THEN BOLIVIANOS END) AS MTH,
+        SUM(CASE WHEN FECHA = p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS MTH_PY,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 3 MONTH THEN BOLIVIANOS END) AS QTR,
         SUM(CASE WHEN FECHA > p.corte - INTERVAL 15 MONTH
-                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS QTR_PY,
-        SUM(CASE WHEN FECHA > p.corte - INTERVAL 6 MONTH THEN DOLARES END) AS SEM,
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS QTR_PY,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 6 MONTH THEN BOLIVIANOS END) AS SEM,
         SUM(CASE WHEN FECHA > p.corte - INTERVAL 18 MONTH
-                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS SEM_PY,
-        SUM(CASE WHEN FECHA >= DATE_TRUNC('year', p.corte) THEN DOLARES END) AS YTD,
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS SEM_PY,
+        SUM(CASE WHEN FECHA >= DATE_TRUNC('year', p.corte) THEN BOLIVIANOS END) AS YTD,
         SUM(CASE WHEN FECHA >= DATE_TRUNC('year', p.corte) - INTERVAL 1 YEAR
-                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS YTD_PY,
-        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS MAT,
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS YTD_PY,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS MAT,
         SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
-                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS MAT_PY
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS MAT_PY
       FROM vw_ventas, p WHERE SUB_MERCADO = 'ACERDIL'
     )
     SELECT ROUND(100.0*(MAT/MAT_PY-1),1) AS G_MAT,
@@ -253,16 +269,16 @@
     sub-mercado completo), no ser "el resto": si excluye a ACERDIL D el
     denominador cambia y el EI da mal. Ademas deberia decir explicitamente
     contra que contexto lo calculo.
-  debe_contener: ["109"]   # valor atado al corte: EI 109,4
+  debe_contener: ["109", "110"]   # valor atado al corte: EI 109,7 en BOB
   modo_contener: cualquiera
   verificacion: |
     -- EI de ACERDIL D contra su sub-mercado, MAT contra el MAT del anio anterior.
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta),
     v AS (
       SELECT MARCA,
-        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS ACTUAL,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS ACTUAL,
         SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
-                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS PY
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS PY
       FROM vw_ventas, p WHERE SUB_MERCADO = 'ACERDIL D' GROUP BY 1
     )
     SELECT
@@ -284,24 +300,25 @@
     es la BRECHA entre contextos, no que uno cruce el 100: ese umbral se mueve
     con cada recarga. Corte 2026-06: ganaba contra el sub-mercado y perdia
     contra la molecula (105,6 y 97,2). Corte 2026-07: perdia en los dos (98,2 y
-    93,2). Corte 2026-08: gana en los dos (109,4 y 105,7). La constante es que
-    el EI contra la molecula siempre da MAS BAJO que contra el sub-mercado.
-  debe_contener: ["105", "106"]   # valor atado al corte: EI 105,7
+    93,2). Corte 2026-08: gana en los dos (109,4 y 105,7 en USD; 109,7 y 106,2
+    en BOB, que es el default desde 2026-11). La constante es que el EI contra
+    la molecula siempre da MAS BAJO que contra el sub-mercado.
+  debe_contener: ["106"]   # valor atado al corte: EI 106,2 en BOB
   no_debe_contener: []
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta),
     ctx AS (
       SELECT
-        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS ACTUAL,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS ACTUAL,
         SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
-                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS PY
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS PY
       FROM vw_ventas, p
       WHERE MOLECULA = (SELECT MOLECULA FROM vw_ventas WHERE MARCA='ACERDIL D' LIMIT 1)
     ), marca AS (
       SELECT
-        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS ACTUAL,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS ACTUAL,
         SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
-                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END) AS PY
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS PY
       FROM vw_ventas, p WHERE MARCA = 'ACERDIL D'
     )
     SELECT ROUND(100.0*(marca.ACTUAL/marca.PY - 1),1) AS G_MARCA,
@@ -361,13 +378,13 @@
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta),
     v AS (SELECT * FROM vw_ventas, p WHERE FECHA > p.corte - INTERVAL 12 MONTH),
     t AS (
-                 SELECT 'CLASE1' AS NIVEL, CLASE1 AS CLASE, SUM(DOLARES) AS DOLARES FROM v GROUP BY 2
-      UNION ALL  SELECT 'CLASE2',          CLASE2,           SUM(DOLARES)            FROM v GROUP BY 2
-      UNION ALL  SELECT 'CLASE3',          CLASE3,           SUM(DOLARES)            FROM v GROUP BY 2
-      UNION ALL  SELECT 'CLASE4',          CLASE4,           SUM(DOLARES)            FROM v GROUP BY 2
+                 SELECT 'CLASE1' AS NIVEL, CLASE1 AS CLASE, SUM(BOLIVIANOS) AS BOLIVIANOS FROM v GROUP BY 2
+      UNION ALL  SELECT 'CLASE2',          CLASE2,           SUM(BOLIVIANOS)            FROM v GROUP BY 2
+      UNION ALL  SELECT 'CLASE3',          CLASE3,           SUM(BOLIVIANOS)            FROM v GROUP BY 2
+      UNION ALL  SELECT 'CLASE4',          CLASE4,           SUM(BOLIVIANOS)            FROM v GROUP BY 2
     )
-    SELECT NIVEL, CLASE, ROUND(DOLARES,0) AS DOLARES FROM t
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY NIVEL ORDER BY DOLARES DESC) = 1
+    SELECT NIVEL, CLASE, ROUND(BOLIVIANOS,0) AS BOLIVIANOS FROM t
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY NIVEL ORDER BY BOLIVIANOS DESC) = 1
     ORDER BY NIVEL
 
 - id: marca_mayor_crecimiento
@@ -380,12 +397,12 @@
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT MARCA,
-           ROUND(SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END),0) AS ACTUAL,
-           ROUND(100.0*(SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END)
+           ROUND(SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END),0) AS ACTUAL,
+           ROUND(100.0*(SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END)
                 / NULLIF(SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
-                                   AND FECHA <= p.corte - INTERVAL 12 MONTH THEN DOLARES END),0) - 1),1) AS YOY
+                                   AND FECHA <= p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END),0) - 1),1) AS YOY
     FROM vw_ventas, p WHERE ES_ABBOTT GROUP BY 1
-    HAVING SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN DOLARES END) > 200000
+    HAVING SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) > 200000
     ORDER BY YOY DESC LIMIT 5
 
 - id: submercado_mas_fuerte
@@ -395,11 +412,11 @@
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
     SELECT SUB_MERCADO,
-           ROUND(100.0*SUM(CASE WHEN ES_ABBOTT THEN DOLARES END)/SUM(DOLARES),1) AS SHARE,
-           ROUND(SUM(DOLARES),0) AS MERCADO
+           ROUND(100.0*SUM(CASE WHEN ES_ABBOTT THEN BOLIVIANOS END)/SUM(BOLIVIANOS),1) AS SHARE,
+           ROUND(SUM(BOLIVIANOS),0) AS MERCADO
     FROM vw_ventas, p
     WHERE SUB_MERCADO IS NOT NULL AND FECHA > p.corte - INTERVAL 12 MONTH
-    GROUP BY 1 HAVING SUM(DOLARES) > 500000 ORDER BY SHARE DESC LIMIT 5
+    GROUP BY 1 HAVING SUM(BOLIVIANOS) > 500000 ORDER BY SHARE DESC LIMIT 5
 
 - id: genericos
   pregunta: Cuanto pesan los genericos en el mercado?
@@ -408,8 +425,8 @@
   modo_contener: cualquiera
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
-    SELECT TIPO_PRODUCTO, ROUND(SUM(DOLARES),0) AS DOLARES,
-           ROUND(100.0*SUM(DOLARES)/SUM(SUM(DOLARES)) OVER (),1) AS PCT
+    SELECT TIPO_PRODUCTO, ROUND(SUM(BOLIVIANOS),0) AS BOLIVIANOS,
+           ROUND(100.0*SUM(BOLIVIANOS)/SUM(SUM(BOLIVIANOS)) OVER (),1) AS PCT
     FROM vw_ventas, p WHERE FECHA > p.corte - INTERVAL 12 MONTH
     GROUP BY 1 ORDER BY 2 DESC
 
@@ -448,7 +465,7 @@
   debe_contener: [PROMEDICAL]
   verificacion: |
     WITH p AS (SELECT FECHA_CORTE AS corte FROM meta)
-    SELECT CORPORACION, ROUND(SUM(DOLARES),0) AS DOLARES
+    SELECT CORPORACION, ROUND(SUM(BOLIVIANOS),0) AS BOLIVIANOS
     FROM vw_ventas, p
     WHERE SUB_MERCADO = 'PEDIASURE' AND NOT ES_ABBOTT
       AND FECHA > p.corte - INTERVAL 12 MONTH
