@@ -107,6 +107,14 @@ def verdad(con, sql: str) -> str:
 
 
 def main() -> None:
+    # Windows imprime en cp1252, que no sabe escribir el signo menos real
+    # (U+2212) ni las comillas tipograficas que usa el bot. Sin esto, una
+    # corrida de 22 casos se cae con UnicodeEncodeError en el primer "-12,5%"
+    # y se pierden todas las llamadas ya pagadas. `errors="replace"` es la red:
+    # perder un caracter en la impresion es infinitamente mejor que perder la
+    # corrida entera.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--caso", help="Corre un solo caso por id.")
     ap.add_argument("--recalcular", action="store_true",
