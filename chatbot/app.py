@@ -144,22 +144,47 @@ st.session_state.setdefault("historial", [])
 
 # -- barra lateral ----------------------------------------------------------
 with st.sidebar:
+    # La barra entera tiene que entrar sin scroll en una laptop de 14" (1280x720
+    # css al 150% de escala), donde quedan ~480px utiles. Con los valores por
+    # defecto el contenido medía 870px: la mayor parte no eran los elementos
+    # sino el espacio que Streamlit deja ENTRE cada uno, mas cuatro separadores
+    # y el numero gigante de st.metric. Por eso aca se achica el gap y los
+    # separadores: es la unica forma de ganar esos pixeles sin sacar funciones.
+    st.html(
+        "<style>"
+        "[data-testid=stSidebarUserContent] [data-testid=stVerticalBlock]"
+        "{gap:0.45rem}"
+        # Streamlit reserva 96px al pie de la barra. Es espacio muerto que
+        # empuja el credito fuera de pantalla y saca la barra de scroll.
+        "[data-testid=stSidebarUserContent]{padding-bottom:1rem}"
+        "[data-testid=stSidebarUserContent] [data-testid=stButton] button"
+        "{padding-top:0.3rem;padding-bottom:0.3rem;min-height:0}"
+        "</style>"
+    )
     dibujar_marca()
     meta = agente.meta
-    st.metric("Datos hasta", meta["FECHA_CORTE"].strftime("%Y-%m-%d"))
-    st.caption(
-        f"Desde {meta['FECHA_DESDE'].strftime('%Y-%m-%d')} · {meta['MESES_INCLUIDOS']} meses · "
-        f"{meta['FILAS']:,} filas"
+    # Reemplaza a st.metric: el valor en 2,5rem ocupaba ~70px para mostrar una
+    # fecha que no necesita ese tamanio.
+    st.html(
+        '<div style="line-height:1.35">'
+        '<span style="opacity:0.65;font-size:0.8rem">Datos hasta </span>'
+        '<span style="font-weight:700;font-size:1.05rem">'
+        f'{meta["FECHA_CORTE"]:%Y-%m-%d}</span><br>'
+        '<span style="opacity:0.65;font-size:0.78rem">'
+        f'desde {meta["FECHA_DESDE"]:%Y-%m} · {meta["MESES_INCLUIDOS"]} meses · '
+        f'{meta["FILAS"]:,} filas</span></div>'
     )
-    st.divider()
     if agente.llamadas_api:
         # Es el gasto de ESTA pestania, no el total del equipo: cada sesion
         # tiene su propio Agente. El acumulado real esta en la consola.
+        #
+        # Sin separadores alrededor: antes tenia uno antes y otro despues, y
+        # como el bloque no se dibuja hasta la primera pregunta, al abrir la app
+        # quedaban dos lineas con un hueco vacio en medio.
         st.caption(
-            f"Gasto estimado de tu sesion: **US$ {agente.costo_usd:.3f}** "
-            f"({agente.llamadas_api} llamadas a la API)"
+            f"Gasto de tu sesion: **USD {agente.costo_usd:.3f}** "
+            f"({agente.llamadas_api} llamadas)"
         )
-    st.divider()
     if st.button("Nueva conversacion", use_container_width=True):
         agente.reiniciar()
         st.session_state.historial = []
@@ -168,7 +193,6 @@ with st.sidebar:
         # descarta en vez de dispararlo en el proximo rerun.
         st.session_state.pop("pregunta_pendiente", None)
         st.rerun()
-    st.divider()
     st.caption("**Ejemplos**")
     # Al apretar un boton, Streamlit reejecuta el script de arriba abajo. La
     # barra lateral se dibuja ANTES del turno nuevo, asi que dejar la pregunta
@@ -177,7 +201,6 @@ with st.sidebar:
     for indice, (etiqueta, pregunta_ejemplo) in enumerate(EJEMPLOS):
         if st.button(etiqueta, key=f"ejemplo-{indice}", use_container_width=True):
             st.session_state.pregunta_pendiente = pregunta_ejemplo
-    st.divider()
     st.caption("Hecho con ❤️ por Jairo Vera")
 
 # -- historial --------------------------------------------------------------
