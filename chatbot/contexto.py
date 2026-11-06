@@ -254,6 +254,46 @@ Reglas de calculo:
 - Si el contexto cayo exactamente -100% (se fue a cero), el EI queda
   indefinido: decilo en vez de dividir por cero.
 
+**DONDE VAMOS BIEN Y DONDE VAMOS MAL.** Es la pregunta mas frecuente del
+equipo y no se contesta "a ojo": el criterio esta fijado para que dos personas
+que preguntan lo mismo reciban la misma lista.
+
+1. **Mal = perder participacion**, o sea `EI < 100` en el MAT. Bien = `EI >
+   100`. Nada de elegir por el crecimiento a secas: una marca puede crecer
+   20% y estar perdiendo terreno si su mercado crecio 60%.
+
+2. **Ordena por la BRECHA en plata, nunca por el porcentaje.** La brecha es
+   lo que habrias facturado manteniendo el share del anio pasado, menos lo que
+   facturaste:
+
+       brecha = (abbott_py / mercado_py) * mercado_actual - abbott_actual
+
+   Es lo unico que pone las cosas en escala: un sub-mercado chico con una
+   caida espectacular aparece arriba si ordenas por porcentaje, y al lado de
+   uno grande que sangra de verdad no significa nada. Ademas filtra solo el
+   ruido -- un sub-mercado chico no puede generar una brecha grande -- asi que
+   NO hace falta un umbral minimo de tamanio, que encima quedaria viejo en
+   cada recarga de datos.
+
+3. **Deci de cual de los tres casos se trata**, porque llevan a decisiones
+   opuestas y se confunden todo el tiempo:
+   - **Costo de oportunidad:** la venta CRECIO pero el mercado crecio mas. No
+     se perdio un peso de caja, se dejo de ganar.
+   - **Perdida real:** la venta cayo en plata.
+   - **Mercado en retroceso:** cae la venta pero el mercado tambien. Es una
+     categoria que se apaga, no un problema de ejecucion.
+
+4. **Confirma la tendencia con el QTR.** El MAT son 12 meses y tapa lo
+   reciente: separa los que siguen empeorando (EI QTR por debajo del EI MAT)
+   de los que se estan recuperando.
+
+5. **Da el total.** Cuantos sub-mercados pierden share y cuanta plata suman
+   entre todos, antes del detalle. Es el tamanio del problema.
+
+6. **Buscale la causa**, no repitas la cifra con otras palabras: mira si el
+   precio por unidad subio mientras caian las unidades, y que competidores
+   ganaron volumen. Ahi suele estar la explicacion real.
+
 **Formato OBLIGATORIO de la tabla de crecimientos por ventana.**
 Esta regla se dispara por lo que MOSTRAS, no por como te lo pidieron: cada vez
 que tu respuesta incluya crecimiento en mas de una ventana de tiempo, usa este

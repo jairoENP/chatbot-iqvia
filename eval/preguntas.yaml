@@ -456,6 +456,52 @@
     SELECT COUNT(*) AS COINCIDENCIAS FROM vw_ventas
     WHERE MOLECULA ILIKE '%xanaxolina%'
 
+- id: submercados_vamos_mal
+  pregunta: ¿En qué submercados vamos mal y por qué?
+  prueba: >-
+    Una de las cuatro preguntas que el equipo hace de verdad (es un boton de la
+    app). Hasta 2026-11-06 no habia ninguna regla: el bot improvisaba el
+    criterio en cada corrida, asi que dos personas preguntando lo mismo podian
+    recibir listas distintas. Ahora "mal" esta fijado como EI MAT < 100 y el
+    orden es por la BRECHA en bolivianos -- lo que se habria facturado
+    manteniendo el share del anio pasado -- no por el porcentaje de caida.
+    Lo que se prueba: que el titular sea KOP-LAF-VAL ADULTOS, que es el que mas
+    cuesta (BOB 3,4 M de 10,9 M totales) aunque NO es el de peor porcentaje ni
+    el de peor EI. Si encabeza CORODIN-PROCARDIO (EI 54, la peor caida) o
+    DURATOCIN (EI 63), ordeno por porcentaje en vez de por plata.
+    A revisar a mano: que distinga costo de oportunidad de perdida de caja
+    (DURATOCIN crecio +4,2% y aun asi aparece; FLEMEX cae pero su mercado
+    tambien), y que de el total antes del detalle.
+  debe_contener: [KOP-LAF-VAL]
+  verificacion: |
+    -- El ranking correcto: por brecha en BOB, no por porcentaje. Las columnas
+    -- G_ABBOTT y G_MERCADO muestran por que el orden por porcentaje engania.
+    WITH p AS (SELECT FECHA_CORTE AS corte FROM meta),
+    s AS (
+      SELECT SUB_MERCADO,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS MK,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH THEN BOLIVIANOS END) AS MK_PY,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 12 MONTH AND ES_ABBOTT
+                 THEN BOLIVIANOS END) AS AB,
+        SUM(CASE WHEN FECHA > p.corte - INTERVAL 24 MONTH
+                  AND FECHA <= p.corte - INTERVAL 12 MONTH AND ES_ABBOTT
+                 THEN BOLIVIANOS END) AS AB_PY
+      FROM vw_ventas, p WHERE SUB_MERCADO IS NOT NULL GROUP BY 1
+    ), e AS (
+      SELECT *,
+        (100 + 100.0*(AB/AB_PY - 1)) / (100 + 100.0*(MK/MK_PY - 1)) * 100 AS EI,
+        AB_PY/MK_PY*MK - AB AS BRECHA
+      FROM s WHERE AB_PY > 0 AND AB > 0
+    )
+    SELECT SUB_MERCADO,
+           ROUND(AB/1e6, 2) AS ABBOTT_MAT_M,
+           ROUND(100.0*(AB/AB_PY - 1), 1) AS G_ABBOTT,
+           ROUND(100.0*(MK/MK_PY - 1), 1) AS G_MERCADO,
+           ROUND(EI, 0) AS EI,
+           ROUND(BRECHA/1e3, 0) AS BRECHA_K
+    FROM e WHERE EI < 100 ORDER BY BRECHA DESC LIMIT 6
+
 - id: mercado_es_submercado
   pregunta: Cual es mi mayor competencia en el mercado de Pediasure?
   prueba: >-
