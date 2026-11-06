@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import base64
 import sys
-import time
 from pathlib import Path
 
 import duckdb
@@ -89,17 +88,6 @@ def dibujar_marca() -> None:
     )
 
 
-def dibujar_costo(costo: float, llamadas: int, segundos: float) -> None:
-    """Pie con el costo de UNA pregunta.
-
-    Se escribe "USD" y no el simbolo de dolar: Streamlit interpreta el texto
-    entre dos signos `$` como formula LaTeX y rompe el render.
-    """
-    st.caption(
-        f"⌁ USD {costo:.3f} · {llamadas} llamadas a la API · {segundos:.0f}s"
-    )
-
-
 @st.cache_resource(show_spinner="Abriendo la base...")
 def abrir_base():
     """Conexion COMPARTIDA a la base, de solo lectura.
@@ -174,17 +162,9 @@ with st.sidebar:
         f'desde {meta["FECHA_DESDE"]:%Y-%m} · {meta["MESES_INCLUIDOS"]} meses · '
         f'{meta["FILAS"]:,} filas</span></div>'
     )
-    if agente.llamadas_api:
-        # Es el gasto de ESTA pestania, no el total del equipo: cada sesion
-        # tiene su propio Agente. El acumulado real esta en la consola.
-        #
-        # Sin separadores alrededor: antes tenia uno antes y otro despues, y
-        # como el bloque no se dibuja hasta la primera pregunta, al abrir la app
-        # quedaban dos lineas con un hueco vacio en medio.
-        st.caption(
-            f"Gasto de tu sesion: **USD {agente.costo_usd:.3f}** "
-            f"({agente.llamadas_api} llamadas)"
-        )
+    # El gasto no se muestra en la interfaz, a pedido del usuario. El Agente
+    # lo sigue acumulando en `costo_usd` / `llamadas_api`, que es de donde lo
+    # lee run_eval.py y de donde saldria si alguna vez se vuelve a mostrar.
     if st.button("Nueva conversacion", use_container_width=True):
         agente.reiniciar()
         st.session_state.historial = []
@@ -218,8 +198,6 @@ for indice_turno, turno in enumerate(st.session_state.historial):
                 use_container_width=True,
                 key=f"hist-{indice_turno}-{indice_figura}",
             )
-        if turno.get("costo") is not None:
-            dibujar_costo(turno["costo"], turno["llamadas"], turno["segundos"])
 
 # -- turno nuevo ------------------------------------------------------------
 pregunta = st.chat_input("Pregunta sobre el mercado...")
@@ -241,12 +219,6 @@ if pregunta:
         texto = ""
         pasos: list[Paso] = []
         estado.caption("Pensando...")
-
-        # El Agente acumula el gasto de toda la sesion, asi que el costo de
-        # ESTA pregunta es la diferencia entre antes y despues del turno.
-        costo_antes = agente.costo_usd
-        llamadas_antes = agente.llamadas_api
-        arranque = time.monotonic()
 
         for evento in agente.preguntar(pregunta):
             if evento.tipo == "texto":
@@ -274,12 +246,6 @@ if pregunta:
                 key=f"vivo-{len(st.session_state.historial)}-{indice_figura}",
             )
 
-        costo = agente.costo_usd - costo_antes
-        llamadas = agente.llamadas_api - llamadas_antes
-        segundos = time.monotonic() - arranque
-        dibujar_costo(costo, llamadas, segundos)
-
     st.session_state.historial.append(
-        {"rol": "assistant", "texto": texto, "pasos": pasos, "figuras": figuras,
-         "costo": costo, "llamadas": llamadas, "segundos": segundos}
+        {"rol": "assistant", "texto": texto, "pasos": pasos, "figuras": figuras}
     )
