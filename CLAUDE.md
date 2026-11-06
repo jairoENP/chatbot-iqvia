@@ -99,7 +99,7 @@ conversación acumulada (por eso el caché, ver *Decisiones técnicas*).
 | [chatbot/agent.py](chatbot/agent.py) | Bucle con Claude, prompt caching, cálculo de costo. |
 | [chatbot/tools.py](chatbot/tools.py) | Las 3 herramientas + clase `Sesion` (estado de una conversación). |
 | [chatbot/contexto.py](chatbot/contexto.py) | **El activo real del proyecto**: esquema + diccionario de negocio + reglas. ~5.400 tokens. |
-| [eval/preguntas.yaml](eval/preguntas.yaml) | 22 casos con la respuesta verdadera en SQL. |
+| [eval/preguntas.yaml](eval/preguntas.yaml) | 23 casos con la respuesta verdadera en SQL. |
 | [eval/run_eval.py](eval/run_eval.py) | Corredor de la validación. |
 | `data/iqvia.duckdb` | 44 MB, **versionado a propósito** (Streamlit Cloud lo sirve del repo). |
 
@@ -160,7 +160,21 @@ Todas están escritas en `contexto.py`; acá el porqué:
    siempre (ACERDIL D: EI 105,6 vs su sub-mercado, 97,2 vs su molécula).
 10. **Solo datos reales.** `ES_PROYECCION = 1` queda fuera. IQVIA entrega con
     atraso: el último mes disponible no es el mes actual.
-11. **La moneda por defecto es BOB, no USD** (decisión del usuario,
+11. **"Vamos bien/mal" = Evolution Index, ordenado por plata** (decisión del
+    usuario, 2026-11-06). Mal es `EI MAT < 100` (perder share), y el ranking va
+    por la **brecha en BOB** —`(abbott_py/mercado_py)*mercado_actual -
+    abbott_actual`, lo que se habría facturado manteniendo el share del año
+    pasado— nunca por el porcentaje de caída. Sin esa regla el bot improvisaba
+    el criterio en cada corrida: lo hacía **bien** (ordenaba por plata, daba el
+    total, separaba costo de oportunidad de pérdida de caja), pero nada lo
+    garantizaba, y es uno de los cuatro botones de la app. La brecha filtra sola
+    el ruido —un sub-mercado chico no puede generar una brecha grande— así que
+    **no hace falta umbral de tamaño**, que además quedaría viejo en cada
+    recarga. Hay tres casos distintos que llevan a decisiones opuestas y deben
+    declararse: costo de oportunidad (DURATOCIN creció +4,2% y aun así pierde
+    share), pérdida real, y mercado en retroceso (FLEMEX cae pero su mercado
+    también).
+12. **La moneda por defecto es BOB, no USD** (decisión del usuario,
     2026-11-04). El tipo de cambio implícito (`SUM(BOLIVIANOS)/SUM(DOLARES)`)
     estuvo clavado en ~6,91 durante 58 meses y saltó a **8,18 en 2026-07 y a
     11,75 en 2026-08**. Desde ahí el crecimiento en USD mezcla venta con
@@ -316,7 +330,7 @@ el contenedor de cero, ambas cosas siguen apuntando al archivo anterior.
 - Agente con 3 herramientas, streaming, thinking adaptativo (`effort: high`).
 - Interfaz con auditoría (paneles de SQL/Python expandibles), gráficos
   interactivos y contador de gasto.
-- 22 casos de evaluación con verdad calculada en SQL.
+- 23 casos de evaluación con verdad calculada en SQL.
 
 **Problemas resueltos (cada uno dejó una regla o un fix):**
 
@@ -343,6 +357,8 @@ el contenedor de cero, ambas cosas siguen apuntando al archivo anterior.
 | Los ejemplos de la barra lateral eran texto muerto y escondían las capacidades | Botones clickeables, etiqueta corta + pregunta completa |
 | Gráfico de pérdidas con eje negativo y la etiqueta de la barra más larga cortada | Regla: magnitudes en positivo, `textposition='inside'` |
 | El crecimiento en USD mostraba caídas que eran devaluación (mercado QTR −15,0% en USD, +6,0% en BOB) | Moneda por defecto BOB; USD solo a pedido y con aviso |
+| "¿Dónde vamos mal?" no tenía criterio fijo: el bot lo improvisaba en cada corrida | Regla de EI + brecha en BOB, con caso en el set |
+| El gráfico de Abbott vs mercado usaba base 100, que depende del mes elegido como base | Default: dos líneas de crecimiento YoY del MAT |
 
 **Descartado:** RAG (los datos son estructurados, SQL es la herramienta
 correcta); memory tool autónomo (las reglas deben pasar por revisión humana);
@@ -375,6 +391,8 @@ Las 3 fallas de la primera pasada tampoco eran del bot:
 - `clase_terapeutica` — ver la pregunta de negocio abierta más abajo.
 
 **Pendiente / riesgos:**
+- Corrida completa **23/23** el 2026-11-06, con la regla de "vamos bien/mal"
+  ya puesta. Sin regresiones.
 - La regla de moneda BOB (2026-11-04) se validó contra la API el 2026-11-05:
   `crecimiento_qtr_yoy`, `metrica_dolares`, `precio_promedio` y
   `tendencia_abbott` dan OK y las respuestas se leyeron a mano. Los otros 18
@@ -405,7 +423,6 @@ Las 3 fallas de la primera pasada tampoco eran del bot:
    **no menciona GitHub ni Streamlit Cloud**.
 2. `app.py:76-79`: el mensaje de error dice "copialo a `data/`", instrucción
    válida solo para el escenario local.
-3. `README.md` dice "15 casos" en el set de evaluación; hay **22**.
 
 ---
 
@@ -447,7 +464,7 @@ streamlit run chatbot/app.py
 
 # --- Validación ---
 python eval/run_eval.py --recalcular      # solo verdades SQL, sin gastar API
-python eval/run_eval.py                   # los 22 casos contra el agente
+python eval/run_eval.py                   # los 23 casos contra el agente
 python eval/run_eval.py --caso evolution_index
 
 # --- Verificación rápida tras un cambio ---
@@ -487,7 +504,7 @@ Streamlit y rompería `run_eval.py` desde terminal.
 
 # Pruebas y validación
 
-**Qué existe:** [eval/preguntas.yaml](eval/preguntas.yaml), 22 casos. Cada uno
+**Qué existe:** [eval/preguntas.yaml](eval/preguntas.yaml), 23 casos. Cada uno
 trae la pregunta, qué se está probando, y la consulta SQL que produce la
 respuesta verdadera. `run_eval.py` corre la pregunta contra el agente y muestra
 ambas lado a lado.
@@ -506,6 +523,10 @@ automático no garantiza que la respuesta sea buena.
 - `fuera_de_rango` / `molecula_inexistente` — debe decir que no tiene el dato
 - `mercado_es_submercado` — "mercado" = SUB_MERCADO
 - `clase_terapeutica` — default `CLASE4` (LECHES PARA NINOS), no `CLASE1`
+- `submercados_vamos_mal` — encabeza KOP-LAF-VAL ADULTOS (brecha BOB 3,4 M de
+  10,9 M en 28 sub-mercados), que **no** es el de peor EI. Si encabeza
+  CORODIN-PROCARDIO (EI 54) o DURATOCIN (EI 63), volvió a ordenar por
+  porcentaje en vez de por plata
 
 El par de Evolution Index se dio vuelta tres veces en tres cortes: 2026-06
 (105,6 y 97,2), 2026-07 (98,2 y 93,2), 2026-08 (109,4 y 105,7). **El umbral de
@@ -617,4 +638,7 @@ del repo público y la rotación de credenciales.
 | 2026-10-06 | Clave de acceso opcional (`APP_PASSWORD`) | La app pública dejaba que cualquiera gastara crédito | `app.py`, `.env.example` | **Revertida 2026-10-20** |
 | 2026-10-20 | Se quita la clave de acceso | Decisión del usuario; nunca llegó a activarse en Secrets | `app.py`, `.env.example` | Vigente |
 | 2026-11-04 | Moneda por defecto BOB en vez de USD | El tipo de cambio pasó de 6,91 a 11,75 en dos meses y el crecimiento en USD mostraba caídas que no ocurrieron | `contexto.py`, `tools.py`, `preguntas.yaml` | Vigente, 4 casos validados |
+| 2026-11-06 | Criterio fijo para "vamos bien/mal": EI < 100, ordenado por brecha en BOB | Era un botón de la app sin criterio definido; dos personas podían recibir listas distintas | `contexto.py`, `preguntas.yaml` | Vigente |
+| 2026-11-06 | Abbott vs mercado se grafica como crecimiento, no base 100 | El base 100 depende del mes base y no dice si hoy ganamos o perdemos | `contexto.py` | Vigente |
+| 2026-11-06 | Se quita el gasto en USD de la interfaz | Pedido del usuario | `app.py` | Vigente |
 | 2026-11-05 | Rename a "Sniper" (sin "IA") + logo y slogan "Preguntá. Entendé. Decidí." | Decisión del usuario | `app.py`, `chatbot/assets/`, `README.md` | Vigente |

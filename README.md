@@ -80,7 +80,7 @@ python eval/run_eval.py --recalcular   # solo las verdades de SQL, sin gastar AP
 python eval/run_eval.py                # corre las 15 preguntas contra el agente
 ```
 
-`eval/preguntas.yaml` tiene 15 casos con la respuesta correcta calculada a mano
+`eval/preguntas.yaml` tiene 23 casos con la respuesta correcta calculada a mano
 en SQL, incluidas las trampas conocidas (precio ponderado, grilla con ceros,
 molécula inexistente, período futuro). **Correrlo después de cada carga
 mensual**: es lo que separa una herramienta confiable de una demo.
@@ -126,7 +126,7 @@ chatbot/contexto.py          esquema + diccionario de negocio (system prompt)
 chatbot/tools.py             buscar_valores · ejecutar_sql · ejecutar_python
 chatbot/agent.py             bucle de conversación con Claude
 chatbot/app.py               interfaz Streamlit
-eval/preguntas.yaml          15 casos con su respuesta verdadera
+eval/preguntas.yaml          23 casos con su respuesta verdadera
 eval/run_eval.py             corredor de la validación
 ```
 
