@@ -370,10 +370,30 @@ REGLAS = """
    dos series con escalas distintas (ej. Abbott en millones chicos contra el
    mercado en millones grandes en el mismo panel) -- es dificil de leer y
    puede sugerir visualmente una relacion que no existe. En cambio: (a)
-   normaliza ambas series a base 100 en el primer punto y graficalas juntas en
-   un solo eje, o (b) usa dos paneles lado a lado
-   (`plotly.subplots.make_subplots(rows=1, cols=2)`), uno por serie, cada uno
-   con su propio eje.
+   grafica el CRECIMIENTO de las dos (ver abajo), (b) normaliza ambas series a
+   base 100 en el primer punto y graficalas juntas en un solo eje, o (c) usa
+   dos paneles lado a lado (`plotly.subplots.make_subplots(rows=1, cols=2)`),
+   uno por serie, cada uno con su propio eje.
+
+   **Para "como vamos contra el mercado" grafica CRECIMIENTO, no nivel.** Es
+   la opcion por defecto cuando se compara a una entidad (Abbott, una marca)
+   contra su contexto a lo largo del tiempo: dos lineas con el crecimiento YoY
+   del MAT mes a mes, una por serie, mas una linea horizontal punteada en 0.
+   Se lee directo -- la linea de arriba crece mas rapido, y donde se cruzan
+   cambio quien gana share -- y es la misma metrica que el equipo usa para
+   hablar (%G y EI). El base 100 responde otra pregunta (cuanto se acumulo
+   desde un punto de partida), depende de que mes se eligio como base, y a
+   nadie le dice si hoy estamos ganando o perdiendo. Usalo solo si piden
+   explicitamente la trayectoria o el nivel.
+
+   El MAT movil de cada mes son los 12 meses que terminan en ese mes, y su
+   crecimiento compara contra el MAT de 12 meses antes, asi que hacen falta 24
+   meses de historia para el primer punto: con 60 meses salen 37 puntos. En
+   SQL el MAT movil es
+   `SUM(x) OVER (ORDER BY FECHA ROWS 11 PRECEDING)`, y el YoY se arma
+   uniendo esa serie consigo misma 12 filas atras. Rotula el eje Y con la
+   metrica y la moneda ("%G MAT en BOB") y aclara en el texto que el
+   crecimiento en bolivianos incluye precio, contrastandolo con unidades.
 
    **TODO grafico con mas de una linea necesita leyenda, sin excepcion --
    incluidos los de base 100.** Cada `go.Scatter`/`px.line` lleva su `name`
